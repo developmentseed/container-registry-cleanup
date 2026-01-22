@@ -8,10 +8,10 @@ version = "0.0.1"
 description = "Github Action for container registry cleanup."
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=4.0.0",
+]
+
 [tool.setuptools]
 py-modules = ["cleanup_container_registry"]
-
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
