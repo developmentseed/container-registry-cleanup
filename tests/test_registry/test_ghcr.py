@@ -1,0 +1,164 @@
+"""Tests for GHCR client."""
+
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from container_registry_cleanup.base import ImageVersion
+from container_registry_cleanup.registry import GHCRClient
+from container_registry_cleanup.settings import Settings
+
+
+class TestGHCRClient:
+    def test_from_settings_missing_repository(self) -> None:
+        """Test from_settings raises error when repository_name is missing."""
+        settings = Settings()
+        settings.repository_name = ""  # Explicitly set to empty
+        settings.registry_type = "ghcr"
+        with pytest.raises(ValueError, match="repository_name"):
+            GHCRClient.from_settings(settings)
+
+    def test_from_settings_with_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test from_settings reads from environment variables."""
+        monkeypatch.setenv("GITHUB_TOKEN", "env-token")
+        monkeypatch.setenv("ORG_NAME", "env-org")
+
+        settings = Settings()
+        settings.repository_name = "test-repo"
+        client = GHCRClient.from_settings(settings)
+
+        assert client.token == "env-token"
+        assert client.org_name == "env-org"
+        assert client.repository_name == "test-repo"
+
+    def test_from_settings_with_alternative_env_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test from_settings reads GITHUB_REPO_OWNER as alternative to ORG_NAME."""
+        monkeypatch.setenv("GITHUB_TOKEN", "token")
+        monkeypatch.setenv("GITHUB_REPO_OWNER", "alt-org")
+        monkeypatch.delenv("ORG_NAME", raising=False)
+
+        settings = Settings()
+        settings.repository_name = "test-repo"
+        client = GHCRClient.from_settings(settings)
+
+        assert client.token == "token"
+        assert client.org_name == "alt-org"
+
+    def test_headers_setup(self) -> None:
+        client = GHCRClient("token123", "myorg", "mypackage")
+        assert "Bearer token123" in client.headers["Authorization"]
+        assert client.headers["Accept"] == "application/vnd.github+json"
+        assert client.org_name == "myorg"
+        assert client.repository_name == "mypackage"
+
+    def test_list_images_single_page(self) -> None:
+        """Test list_images with single page response."""
+        client = GHCRClient("token", "org", "pkg")
+
+        # First call returns data, second call returns empty to break pagination loop
+        mock_response_with_data = MagicMock()
+        mock_response_with_data.json.return_value = [
+            {
+                "id": 123,
+                "created_at": "2024-01-01T00:00:00Z",
+                "metadata": {"container": {"tags": ["tag1", "tag2"]}},
+            }
+        ]
+        mock_response_with_data.raise_for_status = MagicMock()
+
+        mock_response_empty = MagicMock()
+        mock_response_empty.json.return_value = []
+        mock_response_empty.raise_for_status = MagicMock()
+
+        with patch(
+            "requests.get", side_effect=[mock_response_with_data, mock_response_empty]
+        ):
+            images = client.list_images()
+
+        assert len(images) == 1
+        assert images[0].identifier == "123"
+        assert images[0].tags == ["tag1", "tag2"]
+
+    def test_list_images_empty_response(self) -> None:
+        """Test list_images with empty response."""
+        client = GHCRClient("token", "org", "pkg")
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("requests.get", return_value=mock_response):
+            images = client.list_images()
+
+        assert len(images) == 0
+
+    def test_delete_image(self) -> None:
+        """Test delete_image makes correct API call."""
+        client = GHCRClient("token", "org", "pkg")
+        image = ImageVersion("img123", ["tag1"], datetime.now(UTC))
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("requests.delete", return_value=mock_response) as mock_delete:
+            client.delete_image(image)
+            mock_delete.assert_called_once()
+            call_url = mock_delete.call_args[0][0]
+            assert "org" in call_url
+            assert "pkg" in call_url
+            assert "img123" in call_url
+
+    def test_delete_tag_with_multiple_tags_raises_error(self) -> None:
+        """GHCR cannot delete individual tags when image has multiple tags."""
+        client = GHCRClient("token", "org", "pkg")
+        image = ImageVersion("digest1", ["tag1", "tag2"], datetime.now(UTC))
+
+        with pytest.raises(ValueError, match="other tags"):
+            client.delete_tag(image, "tag1")
+
+    def test_delete_tag_with_single_tag(self) -> None:
+        """GHCR can delete tag when it's the only tag."""
+        client = GHCRClient("token", "org", "pkg")
+        image = ImageVersion("digest1", ["tag1"], datetime.now(UTC))
+
+        with patch.object(client, "delete_image") as mock_delete:
+            client.delete_tag(image, "tag1")
+            mock_delete.assert_called_once_with(image)
+
+    def test_write_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test write_summary writes to file when github_step_summary is set."""
+        from container_registry_cleanup.logic import DeletionPlan
+
+        client = GHCRClient("token", "org", "pkg")
+        plan = DeletionPlan(
+            images_to_delete=[],
+            tags_to_delete=[],
+            tags_to_keep=["tag1", "tag2"],
+            tags_in_deleted_images=0,
+        )
+        stats = (2, 3, 1)
+        settings = Settings()
+        # github_step_summary is accessed via getattr, use object.__setattr__ for Pydantic model
+        object.__setattr__(
+            settings, "github_step_summary", str(tmp_path / "summary.md")
+        )
+        settings.dry_run = True
+        settings.test_retention_days = 30
+        settings.dev_retention_days = 7
+
+        client.write_summary(plan, stats, settings)
+
+        summary_file = tmp_path / "summary.md"
+        assert summary_file.exists()
+        content = summary_file.read_text()
+        assert "Container Image Cleanup" in content
+        assert "Kept" in content
+        assert "Dry Run" in content

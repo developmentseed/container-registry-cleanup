@@ -1,0 +1,69 @@
+name: 'Container Image Cleanup'
+description: 'Clean up old container images from a container registry based on tag patterns and retention policies'
+branding:
+  icon: 'trash-2'
+  color: 'red'
+
+inputs:
+  registry_type:
+    description: 'Registry type (ghcr)'
+    required: true
+  repository_name:
+    description: 'Repository/package name'
+    required: true
+  test_retention_days:
+    description: 'Test/PR image retention (days)'
+    default: '30'
+  dev_retention_days:
+    description: 'Dev/SHA/untagged image retention (days)'
+    default: '7'
+  version_pattern:
+    description: 'Regex pattern for version tags (protected from deletion)'
+    default: '^(v\d+\.\d+\.\d+.*|latest|\d{8}-\d{6})$'
+  test_pattern:
+    description: 'Regex pattern for test/PR tags'
+    default: '^pr-\d+$'
+  dev_pattern:
+    description: 'Regex pattern for dev/SHA tags'
+    default: '^(dev|main|sha-[a-f0-9]+)$'
+  dry_run:
+    description: 'Dry run mode'
+    default: 'true'
+  org_name:
+    description: 'GitHub org name (GHCR, defaults to GITHUB_REPO_OWNER)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout action repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.action_repository }}
+        path: action-repo
+        ref: ${{ github.action_ref }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: action-repo
+      run: pip install .
+
+    - name: Run cleanup script
+      shell: bash
+      working-directory: action-repo
+      env:
+        REGISTRY_TYPE: ${{ inputs.registry_type }}
+        TEST_RETENTION_DAYS: ${{ inputs.test_retention_days }}
+        DEV_RETENTION_DAYS: ${{ inputs.dev_retention_days }}
+        VERSION_PATTERN: ${{ inputs.version_pattern }}
+        TEST_PATTERN: ${{ inputs.test_pattern }}
+        DEV_PATTERN: ${{ inputs.dev_pattern }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        GITHUB_TOKEN: ${{ github.token }}
+        ORG_NAME: ${{ inputs.org_name }}
+        GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+      run: python -m container_registry_cleanup

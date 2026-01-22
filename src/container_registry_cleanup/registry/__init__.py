@@ -1,0 +1,34 @@
+from typing import TYPE_CHECKING
+
+from container_registry_cleanup.base import ImageVersion, RegistryClient
+from .ghcr import GHCRClient
+
+if TYPE_CHECKING:
+    from container_registry_cleanup.settings import Settings
+
+__all__ = [
+    "ImageVersion",
+    "RegistryClient",
+    "GHCRClient",
+    "init_registry",
+]
+
+
+def init_registry(settings: "Settings") -> tuple[RegistryClient, str]:
+    registry_type = settings.registry_type.lower()
+    registries: dict[str, type[RegistryClient]] = {
+        "ghcr": GHCRClient,
+    }
+    if registry_type not in registries:
+        raise ValueError(
+            f"REGISTRY_TYPE must be one of {list(registries.keys())}, got '{registry_type}'"
+        )
+    registry_class = registries[registry_type]
+    registry = registry_class.from_settings(settings)
+    # Get the organization/project name from the registry instance
+    if isinstance(registry, GHCRClient):
+        org_or_project = registry.org_name
+    else:
+        org_or_project = None
+    info = f"{registry_type.upper()}: {org_or_project}/{settings.repository_name}"
+    return registry, info

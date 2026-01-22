@@ -7,26 +7,26 @@ name = "container-registry-cleanup"
 version = "0.0.1"
 description = "Github Action for container registry cleanup."
 requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32.0",
+    "python-dateutil>=2.9.0",
+    "pydantic-settings>=2.12.0",
+    "loguru>=0.7.0",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
     "pre-commit>=4.0.0",
     "mypy>=1.19.0",
+    "types-requests>=2.32.0",
 ]
 
 [tool.setuptools]
 packages = ["container_registry_cleanup"]
 package-dir = {"" = "src"}
+
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-check_untyped_defs = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-strict_equality = true
-
+strict = true
