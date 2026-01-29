@@ -24,8 +24,10 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["container_registry_cleanup"]
 package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.mypy]
 python_version = "3.13"
