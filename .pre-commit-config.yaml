@@ -25,7 +25,7 @@ repos:
         name: pytest
         entry: pytest
         language: system
-        args: ["--cov=src/container_registry_cleanup", "--cov-report=term-missing", "--cov-fail-under=75", "tests/"]
+        args: ["--cov=src/container_registry_cleanup", "--cov-report=term-missing", "--cov-fail-under=85", "tests/"]
         pass_filenames: false
         always_run: true
       - id: mypy
