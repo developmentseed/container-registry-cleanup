@@ -21,7 +21,7 @@ class TestHarborClient:
         monkeypatch.setenv("HARBOR_URL", "harbor.example.com")
         monkeypatch.setenv("HARBOR_USERNAME", "user")
         monkeypatch.setenv("HARBOR_PASSWORD", "pass")
-        monkeypatch.setenv("PROJECT_NAME", "proj")
+        monkeypatch.setenv("HARBOR_PROJECT_NAME", "proj")
 
         settings = Settings()
         settings.REPOSITORY_NAME = ""
@@ -33,7 +33,7 @@ class TestHarborClient:
         monkeypatch.setenv("HARBOR_URL", "harbor.example.com")
         monkeypatch.setenv("HARBOR_USERNAME", "user")
         monkeypatch.setenv("HARBOR_PASSWORD", "pass")
-        monkeypatch.setenv("PROJECT_NAME", "proj")
+        monkeypatch.setenv("HARBOR_PROJECT_NAME", "proj")
 
         settings = Settings()
         settings.REPOSITORY_NAME = "repo"

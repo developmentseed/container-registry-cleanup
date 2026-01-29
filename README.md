@@ -44,7 +44,7 @@ The defaults can be changed with arguments.
 * `HARBOR_URL`: Harbor registry URL
 * `HARBOR_USERNAME`: Harbor username
 * `HARBOR_PASSWORD`: Harbor password
-* `PROJECT_NAME`: Harbor project name
+* `HARBOR_PROJECT_NAME`: Harbor project name
 
 ## Usage
 
@@ -92,7 +92,7 @@ jobs:
           HARBOR_URL: ${{ secrets.HARBOR_URL }}
           HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
           HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
-          PROJECT_NAME: my-project
+          HARBOR_PROJECT_NAME: my-project
 ```
 
 ### Running locally

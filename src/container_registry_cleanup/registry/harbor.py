@@ -15,7 +15,7 @@ class HarborSettings(BaseModel):
     HARBOR_URL: str
     HARBOR_USERNAME: str
     HARBOR_PASSWORD: str
-    PROJECT_NAME: str
+    HARBOR_PROJECT_NAME: str
 
 
 class HarborClient(RegistryClient):
@@ -25,7 +25,7 @@ class HarborClient(RegistryClient):
       HARBOR_URL,
       HARBOR_USERNAME,
       HARBOR_PASSWORD,
-      PROJECT_NAME,
+      HARBOR_PROJECT_NAME,
       REPOSITORY_NAME
     """
 
@@ -44,7 +44,7 @@ class HarborClient(RegistryClient):
                     "HARBOR_URL",
                     "HARBOR_USERNAME",
                     "HARBOR_PASSWORD",
-                    "PROJECT_NAME",
+                    "HARBOR_PROJECT_NAME",
                 ]
                 if (v := getattr(settings, k, None))
             },
@@ -54,7 +54,7 @@ class HarborClient(RegistryClient):
             harbor_settings.HARBOR_URL,
             harbor_settings.HARBOR_USERNAME,
             harbor_settings.HARBOR_PASSWORD,
-            harbor_settings.PROJECT_NAME,
+            harbor_settings.HARBOR_PROJECT_NAME,
             settings.REPOSITORY_NAME,
         )
 

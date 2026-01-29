@@ -17,7 +17,7 @@ class TestInitRegistry:
         monkeypatch.setenv("HARBOR_URL", "harbor.example.com")
         monkeypatch.setenv("HARBOR_USERNAME", "user")
         monkeypatch.setenv("HARBOR_PASSWORD", "pass")
-        monkeypatch.setenv("PROJECT_NAME", "proj")
+        monkeypatch.setenv("HARBOR_PROJECT_NAME", "proj")
 
         settings = Settings()
         settings.REGISTRY_TYPE = "harbor"
