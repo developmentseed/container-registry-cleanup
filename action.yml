@@ -7,13 +7,6 @@ branding:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout action repository
-      uses: actions/checkout@v6
-      with:
-        repository: ${{ github.action_repository }}
-        path: action-repo
-        ref: ${{ github.action_ref }}
-
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -21,12 +14,10 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      working-directory: action-repo
-      run: pip install .
+      run: pip install ${{ github.action_path }}
 
     - name: Run cleanup script
       shell: bash
-      working-directory: action-repo
       env:
         GITHUB_TOKEN: ${{ github.token }}
         GITHUB_REPO_OWNER: ${{ github.repository_owner }}
