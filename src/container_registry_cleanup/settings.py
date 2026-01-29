@@ -11,7 +11,6 @@ class Settings(BaseSettings):
 
     VERSION_PATTERN: str = r"^(v?\d+\.\d+\.\d+.*|latest)$"
     TEST_PATTERN: str = r"^pr-\d+$"
-    DEV_PATTERN: str = r"^(dev|main|sha-[a-f0-9]+)$"
 
     TEST_RETENTION_DAYS: int = 30
     DEV_RETENTION_DAYS: int = 7
@@ -31,7 +30,3 @@ class Settings(BaseSettings):
     @property
     def compiled_test_pattern(self) -> Pattern[str]:
         return re.compile(self.TEST_PATTERN)
-
-    @property
-    def compiled_dev_pattern(self) -> Pattern[str]:
-        return re.compile(self.DEV_PATTERN)

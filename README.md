@@ -17,8 +17,7 @@ The defaults can be changed with arguments.
 * **Test tags**: for release candidates, or pull-requests
   * `test_pattern`; the default catches `pr-123`)
   * `test_retention_days` (default: 30 days)
-* **Dev tags** or untagged: for all other images (default: )
-  * All other tagged or untagged images.
+* **Dev tags** or untagged: anything not matching version or test patterns
   * `dev_retention_days` (default: 7 days)
 
 ## Environment Variables
@@ -32,7 +31,6 @@ The defaults can be changed with arguments.
 | `DRY_RUN` | Enable dry-run mode | No | true |
 | `VERSION_PATTERN` | Regex pattern for version tags (protected from deletion) | No | `^(v\d+\.\d+\.\d+.*\|latest)$` |
 | `TEST_PATTERN` | Regex pattern for test/PR tags | No | `^pr-\d+$` |
-| `DEV_PATTERN` | Regex pattern for dev/SHA tags | No | `^(dev\|main\|sha-[a-f0-9]+)$` |
 
 ### GHCR
 

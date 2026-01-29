@@ -29,16 +29,6 @@ class TestTagPatterns:
         assert not self.settings.compiled_version_pattern.match("v1")
         assert not self.settings.compiled_version_pattern.match("20240101-120000")
 
-    def test_dev_pattern(self) -> None:
-        assert self.settings.compiled_dev_pattern.match("dev")
-        assert self.settings.compiled_dev_pattern.match("main")
-        assert self.settings.compiled_dev_pattern.match("sha-abc123")
-        assert self.settings.compiled_dev_pattern.match("sha-1234567890abcdef")
-        assert not self.settings.compiled_dev_pattern.match("sha-xyz")
-        assert not self.settings.compiled_dev_pattern.match("sha-123-abc")
-        assert not self.settings.compiled_dev_pattern.match("develop")
-        assert not self.settings.compiled_dev_pattern.match("main-branch")
-
 
 class TestSettings:
     def test_dry_run_parsing(self, monkeypatch: pytest.MonkeyPatch) -> None:
