@@ -16,7 +16,7 @@ The defaults can be changed with arguments.
   * The default catches [semantic versioning](https://semver.org/) (like `0.8.1`), also with a `v` (like `v1.2.12`) and `latest`
   * Images will never be deleted
 * **Test tags**: for release candidates, or pull-requests
-  * The default catches `pr-123`)
+  * The default catches `pr-123`
   * Default: 30 days
 * **Others**
   * Anything not matching version or test patterns, also untagged images
@@ -85,7 +85,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: developmentseed/container-registry-cleanup@0.0.1
+      - uses: developmentseed/container-registry-cleanup@v0.0.1 # x-release-please-version
         env:
           REGISTRY_TYPE: harbor
           REPOSITORY_NAME: data-pipeline
