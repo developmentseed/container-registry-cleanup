@@ -54,6 +54,7 @@ class TestGHCRClient:
         client = GHCRClient("token123", "myorg", "mypackage")
         assert "Bearer token123" in client.headers["Authorization"]
         assert client.headers["Accept"] == "application/vnd.github+json"
+        assert client.headers["X-GitHub-Api-Version"] == "2022-11-28"
         assert client.org_name == "myorg"
         assert client.repository_name == "mypackage"
 
