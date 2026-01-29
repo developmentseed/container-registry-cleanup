@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "container-registry-cleanup"
-version = "0.1.1"
+version = "0.1.2"
 description = "Github Action for container registry cleanup."
 requires-python = ">=3.11"
 dependencies = [
