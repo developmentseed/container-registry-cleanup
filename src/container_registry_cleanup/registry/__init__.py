@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING
+from __future__ import annotations
 
 from container_registry_cleanup.base import ImageVersion, RegistryClient
-from .ghcr import GHCRClient
+from container_registry_cleanup.settings import Settings
 
-if TYPE_CHECKING:
-    from container_registry_cleanup.settings import Settings
+from .ghcr import GHCRClient
 
 __all__ = [
     "ImageVersion",
@@ -14,7 +13,7 @@ __all__ = [
 ]
 
 
-def init_registry(settings: "Settings") -> tuple[RegistryClient, str]:
+def init_registry(settings: Settings) -> tuple[RegistryClient, str]:
     registry_type = settings.registry_type.lower()
     registries: dict[str, type[RegistryClient]] = {
         "ghcr": GHCRClient,

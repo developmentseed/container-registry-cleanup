@@ -1,14 +1,13 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 import requests
 from pydantic import AliasChoices, BaseModel, Field
 
 from container_registry_cleanup.base import ImageVersion, RegistryClient
-
-if TYPE_CHECKING:
-    from container_registry_cleanup.logic import DeletionPlan
-    from container_registry_cleanup.settings import Settings
+from container_registry_cleanup.logic import DeletionPlan
+from container_registry_cleanup.settings import Settings
 
 
 class GHCRSettings(BaseModel):
@@ -29,7 +28,7 @@ class GHCRClient(RegistryClient):
     """
 
     @classmethod
-    def from_settings(cls, settings: "Settings") -> "GHCRClient":
+    def from_settings(cls, settings: Settings) -> GHCRClient:
         import os
 
         if not settings.repository_name:
@@ -117,7 +116,7 @@ class GHCRClient(RegistryClient):
         self.delete_image(image)
 
     def write_summary(
-        self, plan: "DeletionPlan", stats: tuple[int, int, int], settings: "Settings"
+        self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
     ) -> None:
         """Write cleanup summary to GitHub Actions step summary file."""
         github_step_summary = getattr(settings, "github_step_summary", None)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -27,7 +29,7 @@ class RegistryClient(ABC):
 
     @classmethod
     @abstractmethod
-    def from_settings(cls, settings: "Settings") -> "RegistryClient":
+    def from_settings(cls, settings: Settings) -> RegistryClient:
         pass
 
     @abstractmethod
@@ -43,7 +45,7 @@ class RegistryClient(ABC):
         pass
 
     def write_summary(
-        self, plan: "DeletionPlan", stats: tuple[int, int, int], settings: "Settings"
+        self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
     ) -> None:
         """Write cleanup summary (e.g., to GitHub Actions step summary).
 
