@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.0...v0.1.1) (2026-01-29)
+
+
+### Bug Fixes
+
+* allowed python to find subpackages. ([#10](https://github.com/developmentseed/container-registry-cleanup/issues/10)) ([ca9b6a0](https://github.com/developmentseed/container-registry-cleanup/commit/ca9b6a083ba60e2ff480e536f5ea3c56ed178689))
+* relied on github.action_path. ([#8](https://github.com/developmentseed/container-registry-cleanup/issues/8)) ([e2c683b](https://github.com/developmentseed/container-registry-cleanup/commit/e2c683b87c8a623099183e4e995896c7d0414ba9))
+
 ## [0.1.0](https://github.com/developmentseed/container-registry-cleanup/compare/v0.0.1...v0.1.0) (2026-01-29)
 
 
