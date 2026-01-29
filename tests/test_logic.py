@@ -94,8 +94,8 @@ class TestDeletionPlan:
     def setup_method(self) -> None:
         self.settings = Settings()
         # Explicitly set retention days to avoid environment variable interference
-        self.settings.dev_retention_days = 7
-        self.settings.test_retention_days = 30
+        self.settings.DEV_RETENTION_DAYS = 7
+        self.settings.TEST_RETENTION_DAYS = 30
 
     def test_create_plan_all_tags_expired(self) -> None:
         """Image with all tags expired should be deleted entirely."""
@@ -190,7 +190,7 @@ class TestExecuteDeletionPlanErrors:
 
         now = datetime.now(UTC)
         settings = Settings()
-        settings.dev_retention_days = 7
+        settings.DEV_RETENTION_DAYS = 7
         images = [ImageVersion("img1", ["dev"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, settings)
 

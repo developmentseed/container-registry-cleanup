@@ -15,11 +15,11 @@ class TestInitRegistry:
     def test_init_ghcr(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test GHCR registry initialization."""
         monkeypatch.setenv("GITHUB_TOKEN", "token")
-        monkeypatch.setenv("ORG_NAME", "org")
+        monkeypatch.setenv("GITHUB_REPO_OWNER", "org")
 
         settings = Settings()
-        settings.registry_type = "ghcr"
-        settings.repository_name = "repo"
+        settings.REGISTRY_TYPE = "ghcr"
+        settings.REPOSITORY_NAME = "repo"
 
         registry, info = init_registry(settings)
         assert isinstance(registry, GHCRClient)
@@ -28,8 +28,8 @@ class TestInitRegistry:
     def test_init_invalid_registry(self) -> None:
         """Test invalid registry type raises error."""
         settings = Settings()
-        settings.registry_type = "invalid"
-        settings.repository_name = "repo"
+        settings.REGISTRY_TYPE = "invalid"
+        settings.REPOSITORY_NAME = "repo"
 
         with pytest.raises(ValueError, match="REGISTRY_TYPE"):
             init_registry(settings)

@@ -42,11 +42,11 @@ class TestTagPatterns:
 
 class TestSettings:
     def test_dry_run_parsing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test dry_run boolean parsing from environment."""
+        """Test DRY_RUN boolean parsing from environment."""
         monkeypatch.setenv("DRY_RUN", "true")
         settings = Settings()
-        assert settings.dry_run is True
+        assert settings.DRY_RUN is True
 
         monkeypatch.setenv("DRY_RUN", "false")
         settings = Settings()
-        assert settings.dry_run is False
+        assert settings.DRY_RUN is False

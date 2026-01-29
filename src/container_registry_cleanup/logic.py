@@ -77,7 +77,7 @@ def create_deletion_plan(
     for image in images:
         if not image.tags:
             should_delete, reason = _evaluate_untagged(
-                image.created_at, settings.dev_retention_days
+                image.created_at, settings.DEV_RETENTION_DAYS
             )
             if should_delete:
                 logger.info(f"UNTAGGED: DELETE - {reason}")
@@ -91,8 +91,8 @@ def create_deletion_plan(
             should_delete, reason = _evaluate_tag(
                 tag,
                 image.created_at,
-                settings.dev_retention_days,
-                settings.test_retention_days,
+                settings.DEV_RETENTION_DAYS,
+                settings.TEST_RETENTION_DAYS,
                 version_pattern,
                 test_pattern,
             )

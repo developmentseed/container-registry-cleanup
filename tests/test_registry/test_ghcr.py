@@ -16,36 +16,35 @@ from container_registry_cleanup.settings import Settings
 
 class TestGHCRClient:
     def test_from_settings_missing_repository(self) -> None:
-        """Test from_settings raises error when repository_name is missing."""
+        """Test from_settings raises error when REPOSITORY_NAME is missing."""
         settings = Settings()
-        settings.repository_name = ""  # Explicitly set to empty
-        settings.registry_type = "ghcr"
-        with pytest.raises(ValueError, match="repository_name"):
+        settings.REPOSITORY_NAME = ""  # Explicitly set to empty
+        settings.REGISTRY_TYPE = "ghcr"
+        with pytest.raises(ValueError, match="REPOSITORY_NAME"):
             GHCRClient.from_settings(settings)
 
     def test_from_settings_with_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test from_settings reads from environment variables."""
         monkeypatch.setenv("GITHUB_TOKEN", "env-token")
-        monkeypatch.setenv("ORG_NAME", "env-org")
+        monkeypatch.setenv("GITHUB_REPO_OWNER", "env-org")
 
         settings = Settings()
-        settings.repository_name = "test-repo"
+        settings.REPOSITORY_NAME = "test-repo"
         client = GHCRClient.from_settings(settings)
 
         assert client.token == "env-token"
         assert client.org_name == "env-org"
         assert client.repository_name == "test-repo"
 
-    def test_from_settings_with_alternative_env_var(
+    def test_from_settings_with_github_repo_owner(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test from_settings reads GITHUB_REPO_OWNER as alternative to ORG_NAME."""
+        """Test from_settings reads GITHUB_REPO_OWNER."""
         monkeypatch.setenv("GITHUB_TOKEN", "token")
         monkeypatch.setenv("GITHUB_REPO_OWNER", "alt-org")
-        monkeypatch.delenv("ORG_NAME", raising=False)
 
         settings = Settings()
-        settings.repository_name = "test-repo"
+        settings.REPOSITORY_NAME = "test-repo"
         client = GHCRClient.from_settings(settings)
 
         assert client.token == "token"
@@ -134,7 +133,7 @@ class TestGHCRClient:
     def test_write_summary(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test write_summary writes to file when github_step_summary is set."""
+        """Test write_summary writes to file when GITHUB_STEP_SUMMARY is set."""
         from container_registry_cleanup.logic import DeletionPlan
 
         client = GHCRClient("token", "org", "pkg")
@@ -146,13 +145,13 @@ class TestGHCRClient:
         )
         stats = (2, 3, 1)
         settings = Settings()
-        # github_step_summary is accessed via getattr, use object.__setattr__ for Pydantic model
+        # GITHUB_STEP_SUMMARY is accessed via getattr, use object.__setattr__ for Pydantic model
         object.__setattr__(
-            settings, "github_step_summary", str(tmp_path / "summary.md")
+            settings, "GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md")
         )
-        settings.dry_run = True
-        settings.test_retention_days = 30
-        settings.dev_retention_days = 7
+        settings.DRY_RUN = True
+        settings.TEST_RETENTION_DAYS = 30
+        settings.DEV_RETENTION_DAYS = 7
 
         client.write_summary(plan, stats, settings)
 

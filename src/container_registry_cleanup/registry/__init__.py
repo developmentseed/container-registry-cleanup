@@ -14,7 +14,7 @@ __all__ = [
 
 
 def init_registry(settings: Settings) -> tuple[RegistryClient, str]:
-    registry_type = settings.registry_type.lower()
+    registry_type = settings.REGISTRY_TYPE.lower()
     registries: dict[str, type[RegistryClient]] = {
         "ghcr": GHCRClient,
     }
@@ -29,5 +29,5 @@ def init_registry(settings: Settings) -> tuple[RegistryClient, str]:
         org_or_project = registry.org_name
     else:
         org_or_project = None
-    info = f"{registry_type.upper()}: {org_or_project}/{settings.repository_name}"
+    info = f"{registry_type.upper()}: {org_or_project}/{settings.REPOSITORY_NAME}"
     return registry, info

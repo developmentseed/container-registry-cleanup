@@ -33,7 +33,7 @@ def test_main_returns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("REGISTRY_TYPE", "ghcr")
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     monkeypatch.setenv("REPOSITORY_NAME", "test-repo")
-    monkeypatch.setenv("ORG_NAME", "test-org")
+    monkeypatch.setenv("GITHUB_REPO_OWNER", "test-org")
     # Mock the registry to avoid actual API calls
     monkeypatch.setattr(
         "container_registry_cleanup.registry.ghcr.GHCRClient.list_images",
@@ -53,7 +53,7 @@ class TestMainFunction:
         monkeypatch.setenv("REGISTRY_TYPE", "ghcr")
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
         monkeypatch.setenv("REPOSITORY_NAME", "test-repo")
-        monkeypatch.setenv("ORG_NAME", "test-org")
+        monkeypatch.setenv("GITHUB_REPO_OWNER", "test-org")
         monkeypatch.setenv("DRY_RUN", "true")
         monkeypatch.setattr(
             "container_registry_cleanup.registry.ghcr.GHCRClient.list_images",

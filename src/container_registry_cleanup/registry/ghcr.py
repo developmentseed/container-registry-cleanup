@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import requests
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel
 
 from container_registry_cleanup.base import ImageVersion, RegistryClient
 from container_registry_cleanup.logic import DeletionPlan
@@ -11,40 +11,37 @@ from container_registry_cleanup.settings import Settings
 
 
 class GHCRSettings(BaseModel):
-    github_token: str = Field(
-        validation_alias=AliasChoices("github_token", "GITHUB_TOKEN")
-    )
-    org_name: str = Field(
-        validation_alias=AliasChoices("org_name", "ORG_NAME", "GITHUB_REPO_OWNER")
-    )
+    GITHUB_TOKEN: str
+    GITHUB_REPO_OWNER: str
 
 
 class GHCRClient(RegistryClient):
     """GitHub Container Registry client.
 
-    Required settings: github_token (or GITHUB_TOKEN), repository_name
-    Required environment variables: ORG_NAME (or GITHUB_REPO_OWNER)
-    Optional settings: github_step_summary (GitHub Actions step summary file path)
+    Required settings: GITHUB_TOKEN, GITHUB_REPO_OWNER, REPOSITORY_NAME
+    Optional settings: GITHUB_STEP_SUMMARY (GitHub Actions step summary file path)
     """
 
     @classmethod
     def from_settings(cls, settings: Settings) -> GHCRClient:
         import os
 
-        if not settings.repository_name:
-            raise ValueError("Missing required GHCR setting: repository_name")
+        if not settings.REPOSITORY_NAME:
+            raise ValueError("Missing required GHCR setting: REPOSITORY_NAME")
 
         data = {
             **os.environ,
             **{
                 k: v
-                for k in ["github_token", "org_name"]
+                for k in ["GITHUB_TOKEN", "GITHUB_REPO_OWNER"]
                 if (v := getattr(settings, k, None))
             },
         }
         ghcr_settings = GHCRSettings.model_validate(data)
         return cls(
-            ghcr_settings.github_token, ghcr_settings.org_name, settings.repository_name
+            ghcr_settings.GITHUB_TOKEN,
+            ghcr_settings.GITHUB_REPO_OWNER,
+            settings.REPOSITORY_NAME,
         )
 
     def __init__(self, token: str, org_name: str, repository_name: str):
@@ -119,7 +116,7 @@ class GHCRClient(RegistryClient):
         self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
     ) -> None:
         """Write cleanup summary to GitHub Actions step summary file."""
-        github_step_summary = getattr(settings, "github_step_summary", None)
+        github_step_summary = getattr(settings, "GITHUB_STEP_SUMMARY", None)
         if not github_step_summary:
             return
         deleted_images, deleted_tags, errors = stats
@@ -130,7 +127,7 @@ class GHCRClient(RegistryClient):
             f.write(f"| Deleted (images) | {deleted_images} |\n")
             f.write(f"| Deleted (tags) | {deleted_tags} |\n")
             f.write(f"| Errors | {errors} |\n\n")
-            f.write(f"**Mode:** {'Dry Run' if settings.dry_run else 'Live'} | ")
+            f.write(f"**Mode:** {'Dry Run' if settings.DRY_RUN else 'Live'} | ")
             f.write(
-                f"**Retention:** Test={settings.test_retention_days}d, Dev={settings.dev_retention_days}d\n"
+                f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, Dev={settings.DEV_RETENTION_DAYS}d\n"
             )

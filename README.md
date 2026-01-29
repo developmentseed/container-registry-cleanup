@@ -21,24 +21,30 @@ The defaults can be changed with arguments.
   * All other tagged or untagged images.
   * `dev_retention_days` (default: 7 days)
 
-## Input arguments and secrets
+## Environment Variables
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `registry_type` | Registry type: `ghcr` | Yes | - |
-| `repository_name` | Repository/package name | Yes | - |
-| `test_retention_days` | Days to keep test-tagged images (0 = delete immediately) | No | 30 |
-| `dev_retention_days` | Days to keep all other images (0 = delete immediately) | No | 7 |
-| `dry_run` | Enable dry-run mode | No | true |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `REGISTRY_TYPE` | Registry type: `harbor` or `ghcr` | Yes | - |
+| `REPOSITORY_NAME` | Repository/package name | Yes | - |
+| `TEST_RETENTION_DAYS` | Days to keep test-tagged images (0 = delete immediately) | No | 30 |
+| `DEV_RETENTION_DAYS` | Days to keep all other images (0 = delete immediately) | No | 7 |
+| `DRY_RUN` | Enable dry-run mode | No | true |
+| `VERSION_PATTERN` | Regex pattern for version tags (protected from deletion) | No | `^(v\d+\.\d+\.\d+.*\|latest)$` |
+| `TEST_PATTERN` | Regex pattern for test/PR tags | No | `^pr-\d+$` |
+| `DEV_PATTERN` | Regex pattern for dev/SHA tags | No | `^(dev\|main\|sha-[a-f0-9]+)$` |
 
 ### GHCR
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `repository_name` | Repository/package name | Yes | - |
-| `org_name` | GitHub organization name (GHCR) | GHCR only | Repository owner |
-
 * `GITHUB_TOKEN`: GitHub token with `packages:write` permission (defaults to `github.token`)
+* `GITHUB_REPO_OWNER`: GitHub organization or user name (automatically set to `github.repository_owner` in GitHub Actions)
+
+### Harbor
+
+* `HARBOR_URL`: Harbor registry URL
+* `HARBOR_USERNAME`: Harbor username
+* `HARBOR_PASSWORD`: Harbor password
+* `PROJECT_NAME`: Harbor project name
 
 ## Usage
 
@@ -60,13 +66,33 @@ jobs:
       contents: read
     steps:
       - uses: developmentseed/container-registry-cleanup@0.0.1
-        with:
-          registry_type: ghcr
-          repository_name: my-package-name
-          test_retention_days: 30
-          dev_retention_days: 7
-          untagged_retention_days: 7
-          dry_run: true
+        env:
+          REGISTRY_TYPE: ghcr
+          REPOSITORY_NAME: my-package-name
+          TEST_RETENTION_DAYS: 30
+          DEV_RETENTION_DAYS: 7
+          DRY_RUN: false
+          # GITHUB_TOKEN and GITHUB_REPO_OWNER are automatically set by the action
+```
+
+#### Harbor example
+
+```yaml
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: YOUR_ORG/YOUR_REPO@main
+        env:
+          REGISTRY_TYPE: harbor
+          REPOSITORY_NAME: data-pipeline
+          HARBOR_URL: ${{ secrets.HARBOR_URL }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+          PROJECT_NAME: my-project
 ```
 
 ### Running locally

@@ -24,8 +24,8 @@ def main() -> int:
         return 1
 
     logger.info(
-        f"Registry: {registry_info} | Test={settings.test_retention_days}d, "
-        f"Dev={settings.dev_retention_days}d | Dry run: {settings.dry_run}"
+        f"Registry: {registry_info} | Test={settings.TEST_RETENTION_DAYS}d, "
+        f"Dev={settings.DEV_RETENTION_DAYS}d | Dry run: {settings.DRY_RUN}"
     )
     logger.info(f"Found {len(images)} image(s)")
 
@@ -40,7 +40,7 @@ def main() -> int:
     )
 
     # Execute deletions or print dry-run plan
-    if settings.dry_run:
+    if settings.DRY_RUN:
         print_deletion_plan(plan, images)
         deleted_images, deleted_tags, errors = 0, 0, 0
     else:
