@@ -155,7 +155,7 @@ class TestGHCRClient:
         settings = Settings()
         settings.DRY_RUN = True
         settings.TEST_RETENTION_DAYS = 30
-        settings.DEV_RETENTION_DAYS = 7
+        settings.OTHERS_RETENTION_DAYS = 7
 
         client.write_summary(plan, stats, settings)
 
@@ -169,4 +169,4 @@ class TestGHCRClient:
         assert "| Errors | 1 |" in content
         assert "Dry Run" in content
         assert "Test=30d" in content
-        assert "Dev=7d" in content
+        assert "Others=7d" in content

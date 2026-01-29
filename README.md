@@ -1,4 +1,4 @@
-# Container Image Cleanup
+# Container Registry Cleanup
 
 A reusable GitHub Actions workflow for cleaning up old container images from container registries based on tag patterns and retention policies.
 
@@ -12,13 +12,14 @@ We consider three tag patterns and associated retention days.
 The defaults can be changed with arguments.
 
 * **Version tags**: for releases
-  * `version_pattern`; the default catches [semantic versioning](https://semver.org/) (like `0.8.1`), also with a `v` (like `v1.2.12`) and `latest`
+  * The default catches [semantic versioning](https://semver.org/) (like `0.8.1`), also with a `v` (like `v1.2.12`) and `latest`
   * Images will never be deleted
 * **Test tags**: for release candidates, or pull-requests
-  * `test_pattern`; the default catches `pr-123`)
-  * `test_retention_days` (default: 30 days)
-* **Dev tags** or untagged: anything not matching version or test patterns
-  * `dev_retention_days` (default: 7 days)
+  * The default catches `pr-123`)
+  * Default: 30 days
+* **Others**
+  * Anything not matching version or test patterns, also untagged images
+  * Default: 7 days
 
 ## Environment Variables
 
@@ -26,11 +27,11 @@ The defaults can be changed with arguments.
 |----------|-------------|----------|---------|
 | `REGISTRY_TYPE` | Registry type: `harbor` or `ghcr` | Yes | - |
 | `REPOSITORY_NAME` | Repository/package name | Yes | - |
-| `TEST_RETENTION_DAYS` | Days to keep test-tagged images (0 = delete immediately) | No | 30 |
-| `DEV_RETENTION_DAYS` | Days to keep all other images (0 = delete immediately) | No | 7 |
 | `DRY_RUN` | Enable dry-run mode | No | true |
 | `VERSION_PATTERN` | Regex pattern for version tags (protected from deletion) | No | `^(v\d+\.\d+\.\d+.*\|latest)$` |
 | `TEST_PATTERN` | Regex pattern for test/PR tags | No | `^pr-\d+$` |
+| `TEST_RETENTION_DAYS` | Days to keep test-tagged images (0 = delete immediately) | No | 30 |
+| `OTHERS_RETENTION_DAYS` | Days to keep all other images (0 = delete immediately) | No | 7 |
 
 ### GHCR
 
@@ -61,7 +62,7 @@ jobs:
           REGISTRY_TYPE: ghcr
           REPOSITORY_NAME: my-package-name
           TEST_RETENTION_DAYS: 30
-          DEV_RETENTION_DAYS: 7
+          OTHERS_RETENTION_DAYS: 7
           DRY_RUN: false
           # GITHUB_TOKEN and GITHUB_REPO_OWNER are automatically set by the action
 ```
@@ -74,7 +75,7 @@ export GITHUB_REPO_OWNER=repo-owner-or-org
 export REGISTRY_TYPE=ghcr
 export REPOSITORY_NAME=my-package-name
 export TEST_RETENTION_DAYS=30
-export DEV_RETENTION_DAYS=7
+export OTHERS_RETENTION_DAYS=7
 
 python -m container_registry_cleanup
 ```

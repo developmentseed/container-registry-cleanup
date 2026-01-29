@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     TEST_PATTERN: str = r"^pr-\d+$"
 
     TEST_RETENTION_DAYS: int = 30
-    DEV_RETENTION_DAYS: int = 7
+    OTHERS_RETENTION_DAYS: int = 7
 
     DRY_RUN: bool = True
     GITHUB_STEP_SUMMARY: str | None = None

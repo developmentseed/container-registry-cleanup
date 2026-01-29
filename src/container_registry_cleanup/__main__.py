@@ -25,7 +25,7 @@ def main() -> int:
 
     logger.info(
         f"Registry: {registry_info} | Test={settings.TEST_RETENTION_DAYS}d, "
-        f"Dev={settings.DEV_RETENTION_DAYS}d | Dry run: {settings.DRY_RUN}"
+        f"Others={settings.OTHERS_RETENTION_DAYS}d | Dry run: {settings.DRY_RUN}"
     )
     logger.info(f"Found {len(images)} image(s)")
 

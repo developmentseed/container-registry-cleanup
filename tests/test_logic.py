@@ -52,47 +52,47 @@ class TestRetentionLogic:
         assert not should_delete_new
         assert reason_new == "test tag >30d (10d old)"
 
-    def test_dev_tag_retention(self) -> None:
+    def test_other_tag_retention(self) -> None:
         now = datetime.now(UTC)
 
-        old_dev_tag, reason = evaluate_tag(
+        old_other_tag, reason = evaluate_tag(
             "dev", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )
-        assert old_dev_tag
-        assert reason == "dev tag >7d (10d old)"
+        assert old_other_tag
+        assert reason == "other tag >7d (10d old)"
 
-        recent_main_tag, reason = evaluate_tag(
+        recent_other_tag, reason = evaluate_tag(
             "main", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )
-        assert not recent_main_tag
-        assert reason == "dev tag >7d (3d old)"
+        assert not recent_other_tag
+        assert reason == "other tag >7d (3d old)"
 
         old_sha_tag, reason = evaluate_tag(
             "sha-abc123", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )
         assert old_sha_tag
-        assert reason == "dev tag >7d (10d old)"
+        assert reason == "other tag >7d (10d old)"
 
         recent_sha_tag, reason = evaluate_tag(
             "sha-abc123", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )
         assert not recent_sha_tag
-        assert reason == "dev tag >7d (3d old)"
+        assert reason == "other tag >7d (3d old)"
 
-    def test_unknown_tag_uses_dev_retention(self) -> None:
+    def test_unknown_tag_uses_other_retention(self) -> None:
         now = datetime.now(UTC)
 
         old_unknown_tag, reason = evaluate_tag(
             "random-tag", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )
         assert old_unknown_tag
-        assert reason == "dev tag >7d (10d old)"
+        assert reason == "other tag >7d (10d old)"
 
         recent_unknown_tag, reason = evaluate_tag(
             "random-tag", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )
         assert not recent_unknown_tag
-        assert reason == "dev tag >7d (3d old)"
+        assert reason == "other tag >7d (3d old)"
 
     def test_untagged_retention(self) -> None:
         now = datetime.now(UTC)
@@ -116,7 +116,7 @@ class TestRetentionLogic:
         )
         should_delete_untagged, reason_untagged = evaluate_untagged(now, 0)
         assert should_delete_tag
-        assert reason_tag == "dev tag (retention=0d, 0d old)"
+        assert reason_tag == "other tag (retention=0d, 0d old)"
         assert should_delete_untagged
         assert reason_untagged == "untagged (retention=0d, 0d old)"
 
@@ -125,7 +125,7 @@ class TestDeletionPlan:
     def setup_method(self) -> None:
         self.settings = Settings()
         # Explicitly set retention days to avoid environment variable interference
-        self.settings.DEV_RETENTION_DAYS = 7
+        self.settings.OTHERS_RETENTION_DAYS = 7
         self.settings.TEST_RETENTION_DAYS = 30
 
     def test_create_plan_all_tags_expired(self) -> None:
@@ -216,7 +216,7 @@ class TestExecuteDeletionPlanErrors:
 
         now = datetime.now(UTC)
         settings = Settings()
-        settings.DEV_RETENTION_DAYS = 7
+        settings.OTHERS_RETENTION_DAYS = 7
         images = [ImageVersion("img1", ["dev"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, settings)
 

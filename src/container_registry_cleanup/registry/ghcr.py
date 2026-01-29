@@ -132,5 +132,5 @@ class GHCRClient(RegistryClient):
             f.write(f"| Errors | {errors} |\n\n")
             f.write(f"**Mode:** {'Dry Run' if settings.DRY_RUN else 'Live'} | ")
             f.write(
-                f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, Dev={settings.DEV_RETENTION_DAYS}d\n"
+                f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, Others={settings.OTHERS_RETENTION_DAYS}d\n"
             )
