@@ -4,12 +4,39 @@ import requests
 from loguru import logger
 
 from container_registry_cleanup.logic import (
+    DeletionPlan,
     create_deletion_plan,
     execute_deletion_plan,
     print_deletion_plan,
 )
 from container_registry_cleanup.registry import init_registry
 from container_registry_cleanup.settings import Settings
+
+
+def write_summary(
+    plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
+) -> None:
+    """Write cleanup summary to GitHub Actions step summary."""
+    if not settings.GITHUB_STEP_SUMMARY:
+        return
+
+    deleted_images, deleted_tags, errors = stats
+    action = "To Delete" if settings.DRY_RUN else "Deleted"
+    mode = "Dry Run" if settings.DRY_RUN else "Live"
+
+    with open(settings.GITHUB_STEP_SUMMARY, "w") as f:
+        f.write(
+            f"### Container Image Cleanup\n\n"
+            f"| Metric | Count |\n"
+            f"|--------|-------|\n"
+            f"| Kept | {len(plan.tags_to_keep)} |\n"
+            f"| {action} (images) | {deleted_images} |\n"
+            f"| {action} (tags) | {deleted_tags} |\n"
+            f"| Errors | {errors} |\n\n"
+            f"**Mode:** {mode} | "
+            f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, "
+            f"Others={settings.OTHERS_RETENTION_DAYS}d\n"
+        )
 
 
 def main() -> int:
@@ -48,7 +75,7 @@ def main() -> int:
     else:
         deleted_images, deleted_tags, errors = execute_deletion_plan(registry, plan)
 
-    registry.write_summary(plan, (deleted_images, deleted_tags, errors), settings)
+    write_summary(plan, (deleted_images, deleted_tags, errors), settings)
 
     return 0 if errors == 0 else 1
 
