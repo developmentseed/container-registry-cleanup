@@ -160,5 +160,10 @@ class TestGHCRClient:
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Container Image Cleanup" in content
-        assert "Kept" in content
+        assert "| Kept | 2 |" in content
+        assert "| Deleted (images) | 2 |" in content
+        assert "| Deleted (tags) | 3 |" in content
+        assert "| Errors | 1 |" in content
         assert "Dry Run" in content
+        assert "Test=30d" in content
+        assert "Dev=7d" in content
