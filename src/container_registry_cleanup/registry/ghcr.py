@@ -127,8 +127,9 @@ class GHCRClient(RegistryClient):
             f.write("### Container Image Cleanup\n\n")
             f.write("| Metric | Count |\n|--------|-------|\n")
             f.write(f"| Kept | {len(plan.tags_to_keep)} |\n")
-            f.write(f"| Deleted (images) | {deleted_images} |\n")
-            f.write(f"| Deleted (tags) | {deleted_tags} |\n")
+            action_verb = "To Delete" if settings.DRY_RUN else "Deleted"
+            f.write(f"| {action_verb} (images) | {deleted_images} |\n")
+            f.write(f"| {action_verb} (tags) | {deleted_tags} |\n")
             f.write(f"| Errors | {errors} |\n\n")
             f.write(f"**Mode:** {'Dry Run' if settings.DRY_RUN else 'Live'} | ")
             f.write(
