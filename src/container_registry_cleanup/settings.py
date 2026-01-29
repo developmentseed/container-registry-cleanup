@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DEV_RETENTION_DAYS: int = 7
 
     DRY_RUN: bool = True
+    GITHUB_STEP_SUMMARY: str | None = None
 
     @field_validator("DRY_RUN", mode="before")
     @classmethod

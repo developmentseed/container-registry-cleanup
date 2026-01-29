@@ -145,11 +145,10 @@ class TestGHCRClient:
             tags_in_deleted_images=0,
         )
         stats = (2, 3, 1)
+
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
+
         settings = Settings()
-        # GITHUB_STEP_SUMMARY is accessed via getattr, use object.__setattr__ for Pydantic model
-        object.__setattr__(
-            settings, "GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md")
-        )
         settings.DRY_RUN = True
         settings.TEST_RETENTION_DAYS = 30
         settings.DEV_RETENTION_DAYS = 7
