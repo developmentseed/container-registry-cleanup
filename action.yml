@@ -1,0 +1,33 @@
+name: 'Container Image Cleanup'
+description: 'Clean up old container images from a container registry based on tag patterns and retention policies'
+branding:
+  icon: 'trash-2'
+  color: 'red'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout action repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.action_repository }}
+        path: action-repo
+        ref: ${{ github.action_ref }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: action-repo
+      run: pip install .
+
+    - name: Run cleanup script
+      shell: bash
+      working-directory: action-repo
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+      run: python -m container_registry_cleanup
