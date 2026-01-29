@@ -42,7 +42,9 @@ def main() -> int:
     # Execute deletions or print dry-run plan
     if settings.DRY_RUN:
         print_deletion_plan(plan, images)
-        deleted_images, deleted_tags, errors = 0, 0, 0
+        deleted_images = len(plan.images_to_delete)
+        deleted_tags = len(plan.tags_to_delete)
+        errors = 0
     else:
         deleted_images, deleted_tags, errors = execute_deletion_plan(registry, plan)
 
