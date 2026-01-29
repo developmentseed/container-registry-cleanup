@@ -41,70 +41,84 @@ class TestRetentionLogic:
 
     def test_test_tag_retention(self) -> None:
         now = datetime.now(UTC)
-        should_delete_old, _ = evaluate_tag(
+        should_delete_old, reason_old = evaluate_tag(
             "pr-123", now - timedelta(days=35), 7, 30, self.vp, self.tp
         )
-        should_delete_new, _ = evaluate_tag(
+        should_delete_new, reason_new = evaluate_tag(
             "pr-123", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )
         assert should_delete_old
+        assert reason_old == "test tag >30d (35d old)"
         assert not should_delete_new
+        assert reason_new == "test tag >30d (10d old)"
 
     def test_dev_tag_retention(self) -> None:
         now = datetime.now(UTC)
 
-        old_dev_tag = evaluate_tag(
+        old_dev_tag, reason = evaluate_tag(
             "dev", now - timedelta(days=10), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert old_dev_tag
+        assert reason == "dev tag >7d (10d old)"
 
-        recent_main_tag = evaluate_tag(
+        recent_main_tag, reason = evaluate_tag(
             "main", now - timedelta(days=3), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert not recent_main_tag
+        assert reason == "dev tag >7d (3d old)"
 
-        old_sha_tag = evaluate_tag(
+        old_sha_tag, reason = evaluate_tag(
             "sha-abc123", now - timedelta(days=10), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert old_sha_tag
+        assert reason == "dev tag >7d (10d old)"
 
-        recent_sha_tag = evaluate_tag(
+        recent_sha_tag, reason = evaluate_tag(
             "sha-abc123", now - timedelta(days=3), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert not recent_sha_tag
+        assert reason == "dev tag >7d (3d old)"
 
     def test_unknown_tag_uses_dev_retention(self) -> None:
         now = datetime.now(UTC)
 
-        old_unknown_tag = evaluate_tag(
+        old_unknown_tag, reason = evaluate_tag(
             "random-tag", now - timedelta(days=10), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert old_unknown_tag
+        assert reason == "dev tag >7d (10d old)"
 
-        recent_unknown_tag = evaluate_tag(
+        recent_unknown_tag, reason = evaluate_tag(
             "random-tag", now - timedelta(days=3), 7, 30, self.vp, self.tp
-        )[0]
+        )
         assert not recent_unknown_tag
+        assert reason == "dev tag >7d (3d old)"
 
     def test_untagged_retention(self) -> None:
         now = datetime.now(UTC)
         old_untagged = now - timedelta(days=10)
         new_untagged = now - timedelta(days=3)
 
-        should_delete_old, _ = evaluate_untagged(old_untagged, 7)
-        should_delete_new, _ = evaluate_untagged(new_untagged, 7)
+        should_delete_old, reason_old = evaluate_untagged(old_untagged, 7)
+        should_delete_new, reason_new = evaluate_untagged(new_untagged, 7)
 
         assert should_delete_old
+        assert reason_old == "untagged >7d (10d old)"
         assert not should_delete_new
+        assert reason_new == "untagged >7d (3d old)"
 
     def test_retention_zero_immediate_deletion(self) -> None:
         """Test that retention=0 causes immediate deletion."""
         now = datetime.now(UTC)
         # Even a brand new tag should be deleted if retention is 0
-        should_delete_tag, _ = evaluate_tag("dev", now, 0, 30, self.vp, self.tp)
-        should_delete_untagged, _ = evaluate_untagged(now, 0)
+        should_delete_tag, reason_tag = evaluate_tag(
+            "dev", now, 0, 30, self.vp, self.tp
+        )
+        should_delete_untagged, reason_untagged = evaluate_untagged(now, 0)
         assert should_delete_tag
+        assert reason_tag == "dev tag (retention=0d, 0d old)"
         assert should_delete_untagged
+        assert reason_untagged == "untagged (retention=0d, 0d old)"
 
 
 class TestDeletionPlan:
