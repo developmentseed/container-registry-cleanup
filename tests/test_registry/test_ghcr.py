@@ -115,11 +115,15 @@ class TestGHCRClient:
             assert "img123" in call_url
 
     def test_delete_tag_with_multiple_tags_raises_error(self) -> None:
-        """GHCR cannot delete individual tags when image has multiple tags."""
+        """GHCR REST API can only delete versions (manifests), not individual tags.
+
+        When a version has multiple tags, deleting it would remove all tags.
+        This implementation prevents accidental deletion of other tags.
+        """
         client = GHCRClient("token", "org", "pkg")
         image = ImageVersion("digest1", ["tag1", "tag2"], datetime.now(UTC))
 
-        with pytest.raises(ValueError, match="other tags"):
+        with pytest.raises(ValueError, match="GHCR's REST API would delete the entire"):
             client.delete_tag(image, "tag1")
 
     def test_delete_tag_with_single_tag(self) -> None:

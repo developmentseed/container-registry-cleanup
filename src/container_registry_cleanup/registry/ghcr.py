@@ -105,11 +105,15 @@ class GHCRClient(RegistryClient):
         response.raise_for_status()
 
     def delete_tag(self, image: ImageVersion, tag: str) -> None:
-        # GHCR API doesn't support deleting individual tags - deleting version removes all tags.
+        # GHCR REST API can only delete versions (manifests), not individual tags.
+        # When a version has multiple tags, deleting it would remove all tags.
         if len(image.tags) > 1:
             other_tags = [t for t in image.tags if t != tag]
             tags_list = ", ".join(other_tags)
-            raise ValueError(f"There are other tags on this image: {tags_list}")
+            raise ValueError(
+                f"Cannot delete tag '{tag}': GHCR's REST API would delete the entire "
+                f"image version, removing all tags ({tags_list})"
+            )
         self.delete_image(image)
 
     def write_summary(
