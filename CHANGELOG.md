@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.1...v0.1.2) (2026-01-29)
+
+
+### Bug Fixes
+
+* dry-run summary. ([#11](https://github.com/developmentseed/container-registry-cleanup/issues/11)) ([06329fe](https://github.com/developmentseed/container-registry-cleanup/commit/06329fe583f75162718c84853fbe6ef112b8318a))
+
 ## [0.1.1](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.0...v0.1.1) (2026-01-29)
 
 
