@@ -4,10 +4,12 @@ from container_registry_cleanup.base import ImageVersion, RegistryClient
 from container_registry_cleanup.settings import Settings
 
 from .ghcr import GHCRClient
+from .harbor import HarborClient
 
 __all__ = [
     "ImageVersion",
     "RegistryClient",
+    "HarborClient",
     "GHCRClient",
     "init_registry",
 ]
@@ -16,6 +18,7 @@ __all__ = [
 def init_registry(settings: Settings) -> tuple[RegistryClient, str]:
     registry_type = settings.REGISTRY_TYPE.lower()
     registries: dict[str, type[RegistryClient]] = {
+        "harbor": HarborClient,
         "ghcr": GHCRClient,
     }
     if registry_type not in registries:
@@ -27,6 +30,9 @@ def init_registry(settings: Settings) -> tuple[RegistryClient, str]:
     # Get the organization/project name from the registry instance
     if isinstance(registry, GHCRClient):
         org_or_project = registry.org_name
+    elif isinstance(registry, HarborClient):
+        org_or_project = registry.project_name
+
     else:
         org_or_project = None
     info = f"{registry_type.upper()}: {org_or_project}/{settings.REPOSITORY_NAME}"

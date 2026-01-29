@@ -5,6 +5,7 @@ A reusable GitHub Actions workflow for cleaning up old container images from con
 ## Supported registries
 
 * GitHub Container Registry (GHCR)
+* Harbor
 
 ## Tags
 
@@ -15,7 +16,7 @@ The defaults can be changed with arguments.
   * The default catches [semantic versioning](https://semver.org/) (like `0.8.1`), also with a `v` (like `v1.2.12`) and `latest`
   * Images will never be deleted
 * **Test tags**: for release candidates, or pull-requests
-  * The default catches `pr-123`)
+  * The default catches `pr-123`
   * Default: 30 days
 * **Others**
   * Anything not matching version or test patterns, also untagged images
@@ -37,6 +38,13 @@ The defaults can be changed with arguments.
 
 * `GITHUB_TOKEN`: GitHub token with `packages:write` permission (defaults to `github.token`)
 * `GITHUB_REPO_OWNER`: GitHub organization or user name (automatically set to `github.repository_owner` in GitHub Actions)
+
+### Harbor
+
+* `HARBOR_URL`: Harbor registry URL
+* `HARBOR_USERNAME`: Harbor username
+* `HARBOR_PASSWORD`: Harbor password
+* `HARBOR_PROJECT_NAME`: Harbor project name
 
 ## Usage
 
@@ -65,6 +73,26 @@ jobs:
           OTHERS_RETENTION_DAYS: 7
           DRY_RUN: false
           # GITHUB_TOKEN and GITHUB_REPO_OWNER are automatically set by the action
+```
+
+#### Harbor example
+
+```yaml
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: developmentseed/container-registry-cleanup@v0.0.1 # x-release-please-version
+        env:
+          REGISTRY_TYPE: harbor
+          REPOSITORY_NAME: data-pipeline
+          HARBOR_URL: ${{ secrets.HARBOR_URL }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+          HARBOR_PROJECT_NAME: my-project
 ```
 
 ### Running locally
