@@ -31,25 +31,17 @@ class HarborClient(RegistryClient):
 
     @classmethod
     def from_settings(cls, settings: Settings) -> HarborClient:
+        """Create a HarborClient from settings and environment variables.
+
+        Harbor-specific settings (HARBOR_URL, HARBOR_USERNAME, HARBOR_PASSWORD,
+        HARBOR_PROJECT_NAME) are read from environment variables.
+        """
         import os
 
         if not settings.REPOSITORY_NAME:
             raise ValueError("Missing required Harbor setting: REPOSITORY_NAME")
 
-        data = {
-            **os.environ,
-            **{
-                k: v
-                for k in [
-                    "HARBOR_URL",
-                    "HARBOR_USERNAME",
-                    "HARBOR_PASSWORD",
-                    "HARBOR_PROJECT_NAME",
-                ]
-                if (v := getattr(settings, k, None))
-            },
-        }
-        harbor_settings = HarborSettings.model_validate(data)
+        harbor_settings = HarborSettings.model_validate(os.environ)
         return cls(
             harbor_settings.HARBOR_URL,
             harbor_settings.HARBOR_USERNAME,
