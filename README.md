@@ -57,7 +57,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: developmentseed/container-registry-cleanup@0.0.1
+      - uses: developmentseed/container-registry-cleanup@v0.0.1 # x-release-please-version
         env:
           REGISTRY_TYPE: ghcr
           REPOSITORY_NAME: my-package-name
