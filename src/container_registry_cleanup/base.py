@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from container_registry_cleanup.logic import DeletionPlan
     from container_registry_cleanup.settings import Settings
 
 
@@ -42,14 +41,4 @@ class RegistryClient(ABC):
 
     @abstractmethod
     def delete_tag(self, image: ImageVersion, tag: str) -> None:
-        pass
-
-    def write_summary(
-        self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
-    ) -> None:
-        """Write cleanup summary (e.g., to GitHub Actions step summary).
-
-        Default implementation is a no-op. Override in subclasses to provide
-        registry-specific summary writing functionality.
-        """
         pass
