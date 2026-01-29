@@ -3,6 +3,10 @@
     ".": {
       "release-type": "python",
       "version-file": "pyproject.toml",
+      "include-v-in-tag": true,
+      "extra-files": [
+        "README.md"
+      ],
       "changelog-sections": [
         {
           "type": "feat",
