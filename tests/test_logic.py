@@ -4,6 +4,9 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import MagicMock
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -49,25 +52,39 @@ class TestRetentionLogic:
 
     def test_dev_tag_retention(self) -> None:
         now = datetime.now(UTC)
-        assert evaluate_tag("dev", now - timedelta(days=10), 7, 30, self.vp, self.tp)[0]
-        assert not evaluate_tag(
+
+        old_dev_tag = evaluate_tag(
+            "dev", now - timedelta(days=10), 7, 30, self.vp, self.tp
+        )[0]
+        assert old_dev_tag
+
+        recent_main_tag = evaluate_tag(
             "main", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )[0]
-        assert evaluate_tag(
+        assert not recent_main_tag
+
+        old_sha_tag = evaluate_tag(
             "sha-abc123", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )[0]
-        assert not evaluate_tag(
+        assert old_sha_tag
+
+        recent_sha_tag = evaluate_tag(
             "sha-abc123", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )[0]
+        assert not recent_sha_tag
 
     def test_unknown_tag_uses_dev_retention(self) -> None:
         now = datetime.now(UTC)
-        assert evaluate_tag(
+
+        old_unknown_tag = evaluate_tag(
             "random-tag", now - timedelta(days=10), 7, 30, self.vp, self.tp
         )[0]
-        assert not evaluate_tag(
+        assert old_unknown_tag
+
+        recent_unknown_tag = evaluate_tag(
             "random-tag", now - timedelta(days=3), 7, 30, self.vp, self.tp
         )[0]
+        assert not recent_unknown_tag
 
     def test_untagged_retention(self) -> None:
         now = datetime.now(UTC)
@@ -157,8 +174,6 @@ class TestExecuteDeletionPlan:
 
     def test_execute_with_mock_registry(self) -> None:
         """Test execution with mocked registry."""
-        from unittest.mock import MagicMock
-
         mock_registry = MagicMock()
         mock_registry.delete_image = MagicMock()
         mock_registry.delete_tag = MagicMock()
@@ -179,9 +194,6 @@ class TestExecuteDeletionPlan:
 class TestExecuteDeletionPlanErrors:
     def test_execute_plan_with_errors(self) -> None:
         """Test execute_deletion_plan error handling."""
-        from unittest.mock import MagicMock
-        import requests
-
         mock_registry = MagicMock()
         mock_registry.delete_image.side_effect = requests.exceptions.RequestException(
             "API error"
@@ -202,8 +214,6 @@ class TestExecuteDeletionPlanErrors:
 
     def test_execute_plan_tag_value_error(self) -> None:
         """Test execute_deletion_plan handles ValueError from delete_tag."""
-        from unittest.mock import MagicMock
-
         mock_registry = MagicMock()
         mock_registry.delete_image = MagicMock()
         mock_registry.delete_tag.side_effect = ValueError("Cannot delete tag")
