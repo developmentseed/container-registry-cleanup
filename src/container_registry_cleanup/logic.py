@@ -22,7 +22,7 @@ class DeletionPlan:
 def _evaluate_tag(
     tag_name: str,
     created_at: datetime,
-    dev_retention_days: int,
+    others_retention_days: int,
     test_retention_days: int,
     version_pattern: Pattern[str],
     test_pattern: Pattern[str],
@@ -41,24 +41,24 @@ def _evaluate_tag(
             f"test tag >{test_retention_days}d ({age_days}d old)",
         )
 
-    if dev_retention_days == 0:
-        return True, f"dev tag (retention=0d, {age_days}d old)"
+    if others_retention_days == 0:
+        return True, f"other tag (retention=0d, {age_days}d old)"
     return (
-        age_days > dev_retention_days,
-        f"dev tag >{dev_retention_days}d ({age_days}d old)",
+        age_days > others_retention_days,
+        f"other tag >{others_retention_days}d ({age_days}d old)",
     )
 
 
 def _evaluate_untagged(
-    created_at: datetime, dev_retention_days: int
+    created_at: datetime, others_retention_days: int
 ) -> tuple[bool, str]:
     """Determine if an untagged image should be deleted. Returns (should_delete, reason)."""
     age_days = (datetime.now(UTC) - created_at).days
-    if dev_retention_days == 0:
+    if others_retention_days == 0:
         return True, f"untagged (retention=0d, {age_days}d old)"
     return (
-        age_days > dev_retention_days,
-        f"untagged >{dev_retention_days}d ({age_days}d old)",
+        age_days > others_retention_days,
+        f"untagged >{others_retention_days}d ({age_days}d old)",
     )
 
 
@@ -77,7 +77,7 @@ def create_deletion_plan(
     for image in images:
         if not image.tags:
             should_delete, reason = _evaluate_untagged(
-                image.created_at, settings.DEV_RETENTION_DAYS
+                image.created_at, settings.OTHERS_RETENTION_DAYS
             )
             if should_delete:
                 logger.info(f"UNTAGGED: DELETE - {reason}")
@@ -91,7 +91,7 @@ def create_deletion_plan(
             should_delete, reason = _evaluate_tag(
                 tag,
                 image.created_at,
-                settings.DEV_RETENTION_DAYS,
+                settings.OTHERS_RETENTION_DAYS,
                 settings.TEST_RETENTION_DAYS,
                 version_pattern,
                 test_pattern,
