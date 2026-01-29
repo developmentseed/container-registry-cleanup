@@ -120,11 +120,10 @@ class GHCRClient(RegistryClient):
         self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
     ) -> None:
         """Write cleanup summary to GitHub Actions step summary file."""
-        github_step_summary = getattr(settings, "GITHUB_STEP_SUMMARY", None)
-        if not github_step_summary:
+        if not settings.GITHUB_STEP_SUMMARY:
             return
         deleted_images, deleted_tags, errors = stats
-        with open(github_step_summary, "w") as f:
+        with open(settings.GITHUB_STEP_SUMMARY, "w") as f:
             f.write("### Container Image Cleanup\n\n")
             f.write("| Metric | Count |\n|--------|-------|\n")
             f.write(f"| Kept | {len(plan.tags_to_keep)} |\n")
