@@ -85,7 +85,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: YOUR_ORG/YOUR_REPO@main
+      - uses: developmentseed/container-registry-cleanup@0.0.1
         env:
           REGISTRY_TYPE: harbor
           REPOSITORY_NAME: data-pipeline
