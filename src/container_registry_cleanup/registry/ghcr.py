@@ -6,7 +6,6 @@ import requests
 from pydantic import BaseModel
 
 from container_registry_cleanup.base import ImageVersion, RegistryClient
-from container_registry_cleanup.logic import DeletionPlan
 from container_registry_cleanup.settings import Settings
 
 
@@ -115,23 +114,3 @@ class GHCRClient(RegistryClient):
                 f"image version, removing all tags ({tags_list})"
             )
         self.delete_image(image)
-
-    def write_summary(
-        self, plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
-    ) -> None:
-        """Write cleanup summary to GitHub Actions step summary file."""
-        if not settings.GITHUB_STEP_SUMMARY:
-            return
-        deleted_images, deleted_tags, errors = stats
-        with open(settings.GITHUB_STEP_SUMMARY, "w") as f:
-            f.write("### Container Image Cleanup\n\n")
-            f.write("| Metric | Count |\n|--------|-------|\n")
-            f.write(f"| Kept | {len(plan.tags_to_keep)} |\n")
-            action_verb = "To Delete" if settings.DRY_RUN else "Deleted"
-            f.write(f"| {action_verb} (images) | {deleted_images} |\n")
-            f.write(f"| {action_verb} (tags) | {deleted_tags} |\n")
-            f.write(f"| Errors | {errors} |\n\n")
-            f.write(f"**Mode:** {'Dry Run' if settings.DRY_RUN else 'Live'} | ")
-            f.write(
-                f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, Others={settings.OTHERS_RETENTION_DAYS}d\n"
-            )
