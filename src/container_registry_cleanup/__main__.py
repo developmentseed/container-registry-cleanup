@@ -15,7 +15,10 @@ from container_registry_cleanup.settings import Settings
 def main() -> int:
     settings = Settings()
 
-    # Initialize registry and get all images
+    logger.remove()
+    logger.add(sys.stderr, level="DEBUG" if settings.DEBUG else "INFO")
+    logger.info(settings)
+
     try:
         registry, registry_info = init_registry(settings)
         images = registry.list_images()
@@ -23,16 +26,12 @@ def main() -> int:
         logger.error(f"Error: {e}")
         return 1
 
-    logger.info(
-        f"Registry: {registry_info} | Test={settings.TEST_RETENTION_DAYS}d, "
-        f"Others={settings.OTHERS_RETENTION_DAYS}d | Dry run: {settings.DRY_RUN}"
-    )
     logger.info(f"Found {len(images)} image(s)")
 
     plan = create_deletion_plan(images, settings)
 
     logger.info(
-        f"Plan: {len(plan.images_to_delete)} to delete, "
+        f"Plan: {len(plan.images_to_delete)} images to delete, "
         f"{len(plan.images_to_keep)} to keep"
     )
 

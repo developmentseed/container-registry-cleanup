@@ -76,32 +76,47 @@ def create_deletion_plan(
     plan = DeletionPlan(images_to_delete=[], images_to_keep=[])
 
     for image in images:
+        img_id = (
+            image.identifier[:12] if len(image.identifier) > 12 else image.identifier
+        )
+
         if not image.tags:
             should_delete, reason = _evaluate_untagged(
                 image.created_at, settings.OTHERS_RETENTION_DAYS
             )
             if should_delete:
                 logger.info(f"UNTAGGED: DELETE - {reason}")
+                logger.debug(f"[{img_id}] DELETE: {reason}")
                 plan.images_to_delete.append((image, "untagged"))
             else:
+                logger.debug(f"[{img_id}] KEEP: {reason}")
                 plan.images_to_keep.append((image, reason))
             continue
 
-        has_tag_to_keep = any(
-            not _evaluate_tag(
+        tag_decisions = []
+        for tag in image.tags:
+            should_delete, reason = _evaluate_tag(
                 tag,
                 image.created_at,
                 settings.OTHERS_RETENTION_DAYS,
                 settings.TEST_RETENTION_DAYS,
                 version_pattern,
                 test_pattern,
-            )[0]
-            for tag in image.tags
+            )
+            tag_decisions.append((tag, should_delete, reason))
+            logger.debug(
+                f"[{img_id}] tag '{tag}': {'DELETE' if should_delete else 'KEEP'} - {reason}"
+            )
+
+        has_tag_to_keep = any(
+            not should_delete for _, should_delete, _ in tag_decisions
         )
 
         if has_tag_to_keep:
+            logger.debug(f"[{img_id}] KEEP: has_tags_to_keep")
             plan.images_to_keep.append((image, "has_tags_to_keep"))
         else:
+            logger.debug(f"[{img_id}] DELETE: all_tags_expired")
             plan.images_to_delete.append((image, "all_tags_expired"))
 
     return plan

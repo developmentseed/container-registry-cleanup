@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     OTHERS_RETENTION_DAYS: int = 7
 
     DRY_RUN: bool = True
+    DEBUG: bool = False
     GITHUB_STEP_SUMMARY: str | None = None
 
-    @field_validator("DRY_RUN", mode="before")
+    @field_validator("DRY_RUN", "DEBUG", mode="before")
     @classmethod
     def _parse_bool(cls, v: str | bool) -> bool:
         return v if isinstance(v, bool) else v.lower() == "true"
