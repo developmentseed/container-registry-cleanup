@@ -175,7 +175,7 @@ class TestExecutePlan:
         """Empty plan should return zeros."""
         from container_registry_cleanup.logic import DeletionPlan
 
-        plan = DeletionPlan([], [])
+        plan = DeletionPlan({})
         mock_registry = cast(Any, type("MockRegistry", (), {}))
         errors = execute_plan(mock_registry, plan, [], dry_run=False)
         assert errors == 0
@@ -219,9 +219,13 @@ class TestExecutePlanErrors:
         img1 = ImageVersion("img1", ["dev"], now - timedelta(days=10))
         img2 = ImageVersion("img2", ["v1.0.0"], now - timedelta(days=3))
 
+        from container_registry_cleanup.logic import ImageDecision
+
         plan = DeletionPlan(
-            images_to_delete=[(img1, "all_tags_expired")],
-            images_to_keep=[(img2, "has_tags_to_keep")],
+            {
+                "img1": ImageDecision(img1, "delete", "all_tags_expired"),
+                "img2": ImageDecision(img2, "keep", "has_tags_to_keep"),
+            }
         )
 
         mock_registry = MagicMock()

@@ -5,7 +5,11 @@ from datetime import datetime
 import requests
 from pydantic import BaseModel
 
-from container_registry_cleanup.base import ImageVersion, RegistryClient
+from container_registry_cleanup.base import (
+    ImageVersion,
+    RegistryClient,
+    fetch_manifest_info,
+)
 from container_registry_cleanup.settings import Settings
 
 
@@ -53,6 +57,15 @@ class GHCRClient(RegistryClient):
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
+    def get_manifest_info(self, image: ImageVersion) -> dict[str, str | list[str]]:
+        """Get manifest information for an image (lazy)."""
+        if not image.tags:
+            return {"manifest_type": "unknown", "architectures": [], "media_type": ""}
+
+        url = f"https://ghcr.io/v2/{self.org_name}/{self.repository_name}/manifests/{image.tags[0]}"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        return fetch_manifest_info(url, headers, image.identifier)
+
     def list_images(self) -> list[ImageVersion]:
         all_images = []
         page = 1
@@ -85,14 +98,14 @@ class GHCRClient(RegistryClient):
                     created_at_str.replace("Z", "+00:00")
                 )
 
-                all_images.append(
-                    ImageVersion(
-                        identifier=version_id,
-                        tags=tags,
-                        created_at=created_at,
-                        metadata={"version": version},
-                    )
+                image = ImageVersion(
+                    identifier=version_id,
+                    tags=tags,
+                    created_at=created_at,
+                    metadata={"version": version, "registry_client": self},
                 )
+
+                all_images.append(image)
 
             page += 1
 

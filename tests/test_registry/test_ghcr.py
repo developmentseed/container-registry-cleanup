@@ -77,14 +77,39 @@ class TestGHCRClient:
         mock_response_empty.json.return_value = []
         mock_response_empty.raise_for_status = MagicMock()
 
+        # Mock manifest API call
+        mock_manifest_response = MagicMock()
+        mock_manifest_response.json.return_value = {
+            "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+            "manifests": [
+                {"platform": {"architecture": "amd64"}},
+                {"platform": {"architecture": "arm64"}},
+            ],
+        }
+        mock_manifest_response.headers.get.return_value = (
+            "application/vnd.docker.distribution.manifest.list.v2+json"
+        )
+        mock_manifest_response.raise_for_status = MagicMock()
+
         with patch(
-            "requests.get", side_effect=[mock_response_with_data, mock_response_empty]
+            "requests.get",
+            side_effect=[
+                mock_response_with_data,
+                mock_response_empty,
+            ],
         ):
             images = client.list_images()
 
         assert len(images) == 1
         assert images[0].identifier == "123"
         assert images[0].tags == ["tag1", "tag2"]
+
+        # Test lazy loading of manifest info
+        with patch("requests.get", return_value=mock_manifest_response):
+            manifest_info = client.get_manifest_info(images[0])
+            assert manifest_info["manifest_type"] == "manifest_list"
+            assert "amd64" in manifest_info["architectures"]
+            assert "arm64" in manifest_info["architectures"]
 
     def test_list_images_empty_response(self) -> None:
         """Test list_images with empty response."""

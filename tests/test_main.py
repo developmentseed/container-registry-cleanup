@@ -70,15 +70,24 @@ class TestWriteSummary:
         from datetime import UTC, datetime
 
         from container_registry_cleanup.base import ImageVersion
-        from container_registry_cleanup.logic import DeletionPlan, write_summary
+        from container_registry_cleanup.logic import (
+            DeletionPlan,
+            ImageDecision,
+            write_summary,
+        )
         from container_registry_cleanup.settings import Settings
 
         img1 = ImageVersion("img1", ["tag1"], datetime.now(UTC))
         img2 = ImageVersion("img2", ["tag2"], datetime.now(UTC))
         img3 = ImageVersion("img3abc123def456", ["v1.0", "latest"], datetime.now(UTC))
         plan = DeletionPlan(
-            images_to_delete=[(img3, "test tag >30d (45d old)")],
-            images_to_keep=[(img1, "reason1"), (img2, "reason2")],
+            {
+                "img1": ImageDecision(img1, "keep", "reason1"),
+                "img2": ImageDecision(img2, "keep", "reason2"),
+                "img3abc123def": ImageDecision(
+                    img3, "delete", "test tag >30d (45d old)"
+                ),
+            }
         )
         errors = 1
 
@@ -95,22 +104,21 @@ class TestWriteSummary:
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Container Image Cleanup" in content
-        assert "| Kept | 2 |" in content
-        assert "| To Delete (images) | 1 |" in content
-        assert "| To Delete (tags) | 2 |" in content
+        assert "| Images: kept | 2 |" in content
+        assert "| Images: deleted | 1 |" in content
         assert "| Errors | 1 |" in content
         assert "Dry Run" in content
         assert "Test=30d" in content
         assert "Others=7d" in content
-        # Check expandable sections exist
-        assert "<details>" in content
-        assert "</details>" in content
-        assert "To Delete: 1 images (2 tags)" in content
-        assert "Kept: 2 images (2 tags)" in content
-        # Check image details in expandable sections
+        # Check image sections exist with tables
+        assert "**To delete: 1 images (2 tags)**" in content
+        assert "**To keep: 2 images (2 tags)**" in content
+        # Check table headers
+        assert "| Image ID | Tags | Type | Reason |" in content
+        # Check image details
         assert "`img3abc123de`" in content  # Truncated identifier
         assert "v1.0, latest" in content
-        assert "_test tag >30d (45d old)_" in content
+        assert "test tag >30d (45d old)" in content
         assert "`img1`" in content
         assert "tag1" in content
 
@@ -121,7 +129,11 @@ class TestWriteSummary:
         from datetime import UTC, datetime
 
         from container_registry_cleanup.base import ImageVersion
-        from container_registry_cleanup.logic import DeletionPlan, write_summary
+        from container_registry_cleanup.logic import (
+            DeletionPlan,
+            ImageDecision,
+            write_summary,
+        )
         from container_registry_cleanup.settings import Settings
 
         img1 = ImageVersion("img1", ["tag1"], datetime.now(UTC))
@@ -129,11 +141,12 @@ class TestWriteSummary:
         img3 = ImageVersion("untagged123", [], datetime.now(UTC))
         img4 = ImageVersion("img4", ["v2.0"], datetime.now(UTC))
         plan = DeletionPlan(
-            images_to_delete=[
-                (img3, "untagged >7d (10d old)"),
-                (img4, "other tag >7d (15d old)"),
-            ],
-            images_to_keep=[(img1, "reason1"), (img2, "reason2")],
+            {
+                "img1": ImageDecision(img1, "keep", "reason1"),
+                "img2": ImageDecision(img2, "keep", "reason2"),
+                "untagged123": ImageDecision(img3, "delete", "untagged >7d (10d old)"),
+                "img4": ImageDecision(img4, "delete", "other tag >7d (15d old)"),
+            }
         )
         errors = 0
 
@@ -150,15 +163,16 @@ class TestWriteSummary:
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Container Image Cleanup" in content
-        assert "| Kept | 2 |" in content
-        assert "| Deleted (images) | 2 |" in content
-        assert "| Deleted (tags) | 1 |" in content
+        assert "| Images: kept | 2 |" in content
+        assert "| Images: deleted | 2 |" in content
         assert "| Errors | 0 |" in content
         assert "Live" in content
-        # Check expandable sections with "Deleted" label
-        assert "Deleted: 2 images" in content
-        assert "Kept: 2 images (2 tags)" in content
+        # Check image sections with "Deleted" label
+        assert "**Deleted: 2 images (1 tags)**" in content
+        assert "**Kept: 2 images (2 tags)**" in content
+        # Check table headers
+        assert "| Image ID | Tags | Type | Reason |" in content
         # Check untagged image handling
         assert "`untagged123`" in content
         assert "untagged" in content
-        assert "_untagged >7d (10d old)_" in content
+        assert "untagged >7d (10d old)" in content

@@ -7,7 +7,11 @@ import requests
 from dateutil import parser as date_parser  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
-from container_registry_cleanup.base import ImageVersion, RegistryClient
+from container_registry_cleanup.base import (
+    ImageVersion,
+    RegistryClient,
+    fetch_manifest_info,
+)
 from container_registry_cleanup.settings import Settings
 
 
@@ -70,6 +74,12 @@ class HarborClient(RegistryClient):
     def _get_api_url(self, path: str) -> str:
         return f"{self.harbor_url}/api/v2.0{path}"
 
+    def get_manifest_info(self, image: ImageVersion) -> dict[str, Any]:
+        """Get manifest information for an image (lazy)."""
+        tag = image.tags[0] if image.tags else image.identifier
+        url = f"{self.harbor_url}/v2/{self.project_name}/{self.repository_name}/manifests/{tag}"
+        return fetch_manifest_info(url, {}, image.identifier, self.auth)
+
     def list_images(self) -> list[ImageVersion]:
         url = self._get_api_url(
             f"/projects/{self.project_name}/repositories/{self.repository_name}/artifacts"
@@ -97,14 +107,14 @@ class HarborClient(RegistryClient):
 
                 created_at = self._parse_time(push_time)
 
-                all_images.append(
-                    ImageVersion(
-                        identifier=digest,
-                        tags=tag_names,
-                        created_at=created_at,
-                        metadata={"artifact": artifact},
-                    )
+                image = ImageVersion(
+                    identifier=digest,
+                    tags=tag_names,
+                    created_at=created_at,
+                    metadata={"artifact": artifact, "registry_client": self},
                 )
+
+                all_images.append(image)
 
             page += 1
 
