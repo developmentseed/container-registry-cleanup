@@ -13,10 +13,16 @@ from container_registry_cleanup.settings import Settings
 
 @dataclass
 class DeletionPlan:
-    images_to_delete: list[tuple[ImageVersion, list[str], str]]
-    tags_to_delete: list[tuple[ImageVersion, str]]
-    tags_to_keep: list[str]
-    tags_in_deleted_images: int
+    images_to_delete: list[tuple[ImageVersion, str]]
+    images_to_keep: list[tuple[ImageVersion, str]]
+
+    def count_kept_tags(self) -> int:
+        """Count tags in images that are being kept."""
+        return sum(len(img.tags) for img, _ in self.images_to_keep)
+
+    def count_deleted_tags(self) -> int:
+        """Count tags in images being deleted."""
+        return sum(len(img.tags) for img, _ in self.images_to_delete)
 
 
 def _evaluate_tag(
@@ -67,12 +73,7 @@ def create_deletion_plan(
 ) -> DeletionPlan:
     version_pattern = settings.compiled_version_pattern
     test_pattern = settings.compiled_test_pattern
-    plan = DeletionPlan(
-        images_to_delete=[],
-        tags_to_delete=[],
-        tags_to_keep=[],
-        tags_in_deleted_images=0,
-    )
+    plan = DeletionPlan(images_to_delete=[], images_to_keep=[])
 
     for image in images:
         if not image.tags:
@@ -81,114 +82,104 @@ def create_deletion_plan(
             )
             if should_delete:
                 logger.info(f"UNTAGGED: DELETE - {reason}")
-                plan.images_to_delete.append((image, [], "untagged"))
+                plan.images_to_delete.append((image, "untagged"))
+            else:
+                plan.images_to_keep.append((image, reason))
             continue
 
-        tags_to_delete = []
-        tags_to_keep = []
-
-        for tag in image.tags:
-            should_delete, reason = _evaluate_tag(
+        has_tag_to_keep = any(
+            not _evaluate_tag(
                 tag,
                 image.created_at,
                 settings.OTHERS_RETENTION_DAYS,
                 settings.TEST_RETENTION_DAYS,
                 version_pattern,
                 test_pattern,
-            )
-            if should_delete:
-                logger.info(f"{tag}: DELETE - {reason}")
-                tags_to_delete.append(tag)
-            else:
-                tags_to_keep.append(tag)
-                plan.tags_to_keep.append(tag)
+            )[0]
+            for tag in image.tags
+        )
 
-        if tags_to_delete and not tags_to_keep:
-            plan.images_to_delete.append((image, tags_to_delete, "all_tags_expired"))
-            plan.tags_in_deleted_images += len(tags_to_delete)
-        elif tags_to_delete:
-            for tag in tags_to_delete:
-                plan.tags_to_delete.append((image, tag))
+        if has_tag_to_keep:
+            plan.images_to_keep.append((image, "has_tags_to_keep"))
+        else:
+            plan.images_to_delete.append((image, "all_tags_expired"))
 
     return plan
 
 
-def print_deletion_plan(plan: DeletionPlan, images: list[ImageVersion]) -> None:
-    deleted_image_ids = {img.identifier for img, _, _ in plan.images_to_delete}
-    tags_to_keep_set = set(plan.tags_to_keep)
+def execute_plan(
+    registry: RegistryClient,
+    plan: DeletionPlan,
+    images: list[ImageVersion],
+    dry_run: bool,
+) -> int:
+    if not plan.images_to_delete:
+        logger.info("No images to delete")
+        return 0
 
-    # Images to delete
-    if plan.images_to_delete:
-        logger.info("Images to delete")
-        for image, tag_names, reason in plan.images_to_delete:
-            if reason == "untagged":
-                logger.info(f"  - {image.identifier[:20]}... (untagged)")
-            else:
-                tags_str = ", ".join(tag_names)
-                logger.info(f"  - {image.identifier[:20]}... ({tags_str})")
-
-    # Tags to delete (individual tags from images that aren't being deleted entirely)
-    if plan.tags_to_delete:
-        logger.info("Tags to delete")
-        for image, tag in plan.tags_to_delete:
-            if image.identifier not in deleted_image_ids:
-                logger.info(f"  - {tag} (image: {image.identifier[:20]}...)")
-
-    # Images to keep
-    images_to_keep: list[tuple[ImageVersion, list[str] | None]] = []
-    for image in images:
-        if image.identifier not in deleted_image_ids:
-            if not image.tags:
-                # Untagged image that's not being deleted
-                images_to_keep.append((image, None))
-            else:
-                # Image with tags - check if any tags are being kept
-                kept_tags = [tag for tag in image.tags if tag in tags_to_keep_set]
-                if kept_tags:
-                    images_to_keep.append((image, kept_tags))
-
-    if images_to_keep:
-        logger.info("Images to keep")
-        for image, kept_tags_or_none in images_to_keep:
-            if kept_tags_or_none is None:
-                logger.info(f"  - {image.identifier[:20]}... (untagged)")
-            else:
-                tags_str = ", ".join(kept_tags_or_none)
-                logger.info(f"  - {image.identifier[:20]}... ({tags_str})")
-
-
-def execute_deletion_plan(
-    registry: RegistryClient, plan: DeletionPlan
-) -> tuple[int, int, int]:
-    if not plan.tags_to_delete and not plan.images_to_delete:
-        logger.info("No tags or images to delete")
-        return 0, 0, 0
+    if dry_run:
+        logger.info(f"DRY RUN: Would delete {len(plan.images_to_delete)} images")
+        return 0
 
     logger.info("PERFORMING DELETIONS...")
-    deleted_images = deleted_tags = errors = 0
-    image_ids = {img.identifier for img, _, _ in plan.images_to_delete}
+    deleted = errors = 0
 
-    for image, tag_names, reason in plan.images_to_delete:
+    for image, reason in plan.images_to_delete:
         try:
             registry.delete_image(image)
-            deleted_images += 1
+            deleted += 1
         except requests.exceptions.RequestException as e:
             logger.error(f"Error deleting image {image.identifier[:20]}...: {e}")
             errors += 1
 
-    processed_images = set(image_ids)
-    for image, tag_name in plan.tags_to_delete:
-        if image.identifier not in processed_images:
-            try:
-                registry.delete_tag(image, tag_name)
-                deleted_tags += 1
-            except ValueError as e:
-                logger.warning(f"Cannot delete tag '{tag_name}'. {e}. Skipping.")
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Error deleting tag {tag_name}: {e}")
-                errors += 1
+    logger.info(f"Deleted: {deleted} images, {errors} errors")
+    return errors
 
-    logger.info(
-        f"Deleted: {deleted_images} images, {deleted_tags} tags, {errors} errors"
-    )
-    return deleted_images, deleted_tags, errors
+
+def write_summary(plan: DeletionPlan, errors: int, settings: Settings) -> None:
+    """Write cleanup summary to GitHub Actions step summary."""
+    if not settings.GITHUB_STEP_SUMMARY:
+        return
+
+    deleted_images = len(plan.images_to_delete)
+    deleted_tags = plan.count_deleted_tags()
+    action = "To Delete" if settings.DRY_RUN else "Deleted"
+    mode = "Dry Run" if settings.DRY_RUN else "Live"
+
+    with open(settings.GITHUB_STEP_SUMMARY, "w") as f:
+        f.write(
+            f"### Container Image Cleanup\n\n"
+            f"| Metric | Count |\n"
+            f"|--------|-------|\n"
+            f"| Kept | {plan.count_kept_tags()} |\n"
+            f"| {action} (images) | {deleted_images} |\n"
+            f"| {action} (tags) | {deleted_tags} |\n"
+            f"| Errors | {errors} |\n\n"
+            f"**Mode:** {mode} | "
+            f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, "
+            f"Others={settings.OTHERS_RETENTION_DAYS}d\n\n"
+        )
+
+        if plan.images_to_delete:
+            f.write(
+                f"<details>\n<summary>{action}: {len(plan.images_to_delete)} images ({plan.count_deleted_tags()} tags)</summary>\n\n"
+            )
+            for img, reason in plan.images_to_delete:
+                img_id = (
+                    img.identifier[:12] if len(img.identifier) > 12 else img.identifier
+                )
+                tags_str = ", ".join(img.tags) if img.tags else "untagged"
+                f.write(f"- `{img_id}` — {tags_str} — _{reason}_\n")
+            f.write("\n</details>\n\n")
+
+        if plan.images_to_keep:
+            f.write(
+                f"<details>\n<summary>Kept: {len(plan.images_to_keep)} images ({plan.count_kept_tags()} tags)</summary>\n\n"
+            )
+            for img, reason in plan.images_to_keep:
+                img_id = (
+                    img.identifier[:12] if len(img.identifier) > 12 else img.identifier
+                )
+                tags_str = ", ".join(img.tags) if img.tags else "untagged"
+                f.write(f"- `{img_id}` — {tags_str} — _{reason}_\n")
+            f.write("\n</details>\n")

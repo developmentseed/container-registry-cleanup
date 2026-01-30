@@ -15,8 +15,7 @@ from container_registry_cleanup.logic import (
     _evaluate_tag as evaluate_tag,
     _evaluate_untagged as evaluate_untagged,
     create_deletion_plan,
-    execute_deletion_plan,
-    print_deletion_plan,
+    execute_plan,
 )
 from container_registry_cleanup.settings import Settings
 
@@ -134,18 +133,16 @@ class TestDeletionPlan:
         images = [ImageVersion("img1", ["dev", "main"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 1
-        assert len(plan.tags_to_delete) == 0
-        assert plan.tags_in_deleted_images == 2
+        assert plan.count_deleted_tags() == 2
 
     def test_create_plan_some_tags_expired(self) -> None:
-        """Image with some tags expired should delete only those tags."""
+        """Image with some tags to keep should keep all tags."""
         now = datetime.now(UTC)
         images = [ImageVersion("img1", ["v1.0.0", "dev"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 0
-        assert len(plan.tags_to_delete) == 1
-        assert plan.tags_to_delete[0][1] == "dev"
-        assert len(plan.tags_to_keep) == 1
+        assert len(plan.images_to_keep) == 1
+        assert plan.count_kept_tags() == 2
 
     def test_create_plan_no_tags_expired(self) -> None:
         """Image with no tags expired should be kept."""
@@ -153,8 +150,8 @@ class TestDeletionPlan:
         images = [ImageVersion("img1", ["v1.0.0", "main"], now - timedelta(days=3))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 0
-        assert len(plan.tags_to_delete) == 0
-        assert len(plan.tags_to_keep) == 2
+        assert len(plan.images_to_keep) == 1
+        assert plan.count_kept_tags() == 2
 
     def test_create_plan_untagged_old(self) -> None:
         """Old untagged image should be deleted."""
@@ -162,7 +159,7 @@ class TestDeletionPlan:
         images = [ImageVersion("img1", [], now - timedelta(days=10))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 1
-        assert plan.images_to_delete[0][2] == "untagged"
+        assert plan.images_to_delete[0][1] == "untagged"
 
     def test_create_plan_untagged_new(self) -> None:
         """New untagged image should be kept."""
@@ -170,49 +167,40 @@ class TestDeletionPlan:
         images = [ImageVersion("img1", [], now - timedelta(days=3))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 0
+        assert len(plan.images_to_keep) == 1
 
 
-class TestExecuteDeletionPlan:
+class TestExecutePlan:
     def test_empty_plan(self) -> None:
         """Empty plan should return zeros."""
         from container_registry_cleanup.logic import DeletionPlan
 
-        plan = DeletionPlan([], [], [], 0)
+        plan = DeletionPlan([], [])
         mock_registry = cast(Any, type("MockRegistry", (), {}))
-        deleted_images, deleted_tags, errors = execute_deletion_plan(
-            mock_registry, plan
-        )
-        assert deleted_images == 0
-        assert deleted_tags == 0
+        errors = execute_plan(mock_registry, plan, [], dry_run=False)
         assert errors == 0
 
     def test_execute_with_mock_registry(self) -> None:
         """Test execution with mocked registry."""
         mock_registry = MagicMock()
         mock_registry.delete_image = MagicMock()
-        mock_registry.delete_tag = MagicMock()
 
         now = datetime.now(UTC)
         images = [ImageVersion("img1", ["dev"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, Settings())
 
-        deleted_images, deleted_tags, errors = execute_deletion_plan(
-            mock_registry, plan
-        )
-        assert deleted_images == 1
-        assert deleted_tags == 0
+        errors = execute_plan(mock_registry, plan, images, dry_run=False)
         assert errors == 0
         mock_registry.delete_image.assert_called_once()
 
 
-class TestExecuteDeletionPlanErrors:
+class TestExecutePlanErrors:
     def test_execute_plan_with_errors(self) -> None:
-        """Test execute_deletion_plan error handling."""
+        """Test execute_plan error handling."""
         mock_registry = MagicMock()
         mock_registry.delete_image.side_effect = requests.exceptions.RequestException(
             "API error"
         )
-        mock_registry.delete_tag = MagicMock()
 
         now = datetime.now(UTC)
         settings = Settings()
@@ -220,50 +208,25 @@ class TestExecuteDeletionPlanErrors:
         images = [ImageVersion("img1", ["dev"], now - timedelta(days=10))]
         plan = create_deletion_plan(images, settings)
 
-        deleted_images, deleted_tags, errors = execute_deletion_plan(
-            mock_registry, plan
-        )
-        assert deleted_images == 0
+        errors = execute_plan(mock_registry, plan, images, dry_run=False)
         assert errors == 1
 
-    def test_execute_plan_tag_value_error(self) -> None:
-        """Test execute_deletion_plan handles ValueError from delete_tag."""
-        mock_registry = MagicMock()
-        mock_registry.delete_image = MagicMock()
-        mock_registry.delete_tag.side_effect = ValueError("Cannot delete tag")
-
-        now = datetime.now(UTC)
-        images = [ImageVersion("img1", ["v1.0.0", "dev"], now - timedelta(days=10))]
-        plan = create_deletion_plan(images, Settings())
-
-        deleted_images, deleted_tags, errors = execute_deletion_plan(
-            mock_registry, plan
-        )
-        assert deleted_images == 0
-        assert deleted_tags == 0
-        assert errors == 0  # ValueError is caught and logged as warning, not error
-
-
-class TestPrintDeletionPlan:
-    def test_print_deletion_plan(self) -> None:
-        """Test print_deletion_plan with various scenarios."""
+    def test_dry_run(self) -> None:
+        """Test dry run mode prints plan without executing."""
         from container_registry_cleanup.logic import DeletionPlan
 
         now = datetime.now(UTC)
         img1 = ImageVersion("img1", ["dev"], now - timedelta(days=10))
-        img2 = ImageVersion("img2", ["v1.0.0", "dev"], now - timedelta(days=10))
-        img3 = ImageVersion("img3", ["v2.0.0"], now - timedelta(days=3))
-        img4 = ImageVersion("img4", [], now - timedelta(days=10))
+        img2 = ImageVersion("img2", ["v1.0.0"], now - timedelta(days=3))
 
         plan = DeletionPlan(
-            images_to_delete=[
-                (img1, ["dev"], "all_tags_expired"),
-                (img4, [], "untagged"),
-            ],
-            tags_to_delete=[(img2, "dev")],
-            tags_to_keep=["v1.0.0", "v2.0.0"],
-            tags_in_deleted_images=1,
+            images_to_delete=[(img1, "all_tags_expired")],
+            images_to_keep=[(img2, "has_tags_to_keep")],
         )
 
-        # Should not raise any errors
-        print_deletion_plan(plan, [img1, img2, img3, img4])
+        mock_registry = MagicMock()
+        errors = execute_plan(mock_registry, plan, [img1, img2], dry_run=True)
+
+        # Should not call delete in dry run
+        mock_registry.delete_image.assert_not_called()
+        assert errors == 0
