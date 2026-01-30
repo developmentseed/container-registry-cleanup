@@ -26,7 +26,6 @@ try:
 finally:
     sys.exit = cast(Any, _original_exit)
 main = _main_module.main
-write_summary = _main_module.write_summary
 
 
 def test_main_returns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,16 +67,20 @@ class TestWriteSummary:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test write_summary writes to file when GITHUB_STEP_SUMMARY is set."""
-        from container_registry_cleanup.logic import DeletionPlan
+        from datetime import UTC, datetime
+
+        from container_registry_cleanup.base import ImageVersion
+        from container_registry_cleanup.logic import DeletionPlan, write_summary
         from container_registry_cleanup.settings import Settings
 
+        img1 = ImageVersion("img1", ["tag1"], datetime.now(UTC))
+        img2 = ImageVersion("img2", ["tag2"], datetime.now(UTC))
+        img3 = ImageVersion("img3abc123def456", ["v1.0", "latest"], datetime.now(UTC))
         plan = DeletionPlan(
-            images_to_delete=[],
-            tags_to_delete=[],
-            tags_to_keep=["tag1", "tag2"],
-            tags_in_deleted_images=0,
+            images_to_delete=[(img3, "test tag >30d (45d old)")],
+            images_to_keep=[(img1, "reason1"), (img2, "reason2")],
         )
-        stats = (2, 3, 1)
+        errors = 1
 
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
 
@@ -86,34 +89,53 @@ class TestWriteSummary:
         settings.TEST_RETENTION_DAYS = 30
         settings.OTHERS_RETENTION_DAYS = 7
 
-        write_summary(plan, stats, settings)
+        write_summary(plan, errors, settings)
 
         summary_file = tmp_path / "summary.md"
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Container Image Cleanup" in content
         assert "| Kept | 2 |" in content
-        assert "| To Delete (images) | 2 |" in content
-        assert "| To Delete (tags) | 3 |" in content
+        assert "| To Delete (images) | 1 |" in content
+        assert "| To Delete (tags) | 2 |" in content
         assert "| Errors | 1 |" in content
         assert "Dry Run" in content
         assert "Test=30d" in content
         assert "Others=7d" in content
+        # Check expandable sections exist
+        assert "<details>" in content
+        assert "</details>" in content
+        assert "To Delete: 1 images (2 tags)" in content
+        assert "Kept: 2 images (2 tags)" in content
+        # Check image details in expandable sections
+        assert "`img3abc123de`" in content  # Truncated identifier
+        assert "v1.0, latest" in content
+        assert "_test tag >30d (45d old)_" in content
+        assert "`img1`" in content
+        assert "tag1" in content
 
     def test_write_summary_live_mode(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test write_summary shows 'Deleted' label in live mode."""
-        from container_registry_cleanup.logic import DeletionPlan
+        from datetime import UTC, datetime
+
+        from container_registry_cleanup.base import ImageVersion
+        from container_registry_cleanup.logic import DeletionPlan, write_summary
         from container_registry_cleanup.settings import Settings
 
+        img1 = ImageVersion("img1", ["tag1"], datetime.now(UTC))
+        img2 = ImageVersion("img2", ["tag2"], datetime.now(UTC))
+        img3 = ImageVersion("untagged123", [], datetime.now(UTC))
+        img4 = ImageVersion("img4", ["v2.0"], datetime.now(UTC))
         plan = DeletionPlan(
-            images_to_delete=[],
-            tags_to_delete=[],
-            tags_to_keep=["tag1", "tag2"],
-            tags_in_deleted_images=0,
+            images_to_delete=[
+                (img3, "untagged >7d (10d old)"),
+                (img4, "other tag >7d (15d old)"),
+            ],
+            images_to_keep=[(img1, "reason1"), (img2, "reason2")],
         )
-        stats = (5, 8, 0)
+        errors = 0
 
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
 
@@ -122,14 +144,21 @@ class TestWriteSummary:
         settings.TEST_RETENTION_DAYS = 30
         settings.OTHERS_RETENTION_DAYS = 7
 
-        write_summary(plan, stats, settings)
+        write_summary(plan, errors, settings)
 
         summary_file = tmp_path / "summary.md"
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Container Image Cleanup" in content
         assert "| Kept | 2 |" in content
-        assert "| Deleted (images) | 5 |" in content
-        assert "| Deleted (tags) | 8 |" in content
+        assert "| Deleted (images) | 2 |" in content
+        assert "| Deleted (tags) | 1 |" in content
         assert "| Errors | 0 |" in content
         assert "Live" in content
+        # Check expandable sections with "Deleted" label
+        assert "Deleted: 2 images" in content
+        assert "Kept: 2 images (2 tags)" in content
+        # Check untagged image handling
+        assert "`untagged123`" in content
+        assert "untagged" in content
+        assert "_untagged >7d (10d old)_" in content

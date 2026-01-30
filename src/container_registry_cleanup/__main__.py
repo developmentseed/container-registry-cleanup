@@ -4,39 +4,12 @@ import requests
 from loguru import logger
 
 from container_registry_cleanup.logic import (
-    DeletionPlan,
     create_deletion_plan,
-    execute_deletion_plan,
-    print_deletion_plan,
+    execute_plan,
+    write_summary,
 )
 from container_registry_cleanup.registry import init_registry
 from container_registry_cleanup.settings import Settings
-
-
-def write_summary(
-    plan: DeletionPlan, stats: tuple[int, int, int], settings: Settings
-) -> None:
-    """Write cleanup summary to GitHub Actions step summary."""
-    if not settings.GITHUB_STEP_SUMMARY:
-        return
-
-    deleted_images, deleted_tags, errors = stats
-    action = "To Delete" if settings.DRY_RUN else "Deleted"
-    mode = "Dry Run" if settings.DRY_RUN else "Live"
-
-    with open(settings.GITHUB_STEP_SUMMARY, "w") as f:
-        f.write(
-            f"### Container Image Cleanup\n\n"
-            f"| Metric | Count |\n"
-            f"|--------|-------|\n"
-            f"| Kept | {len(plan.tags_to_keep)} |\n"
-            f"| {action} (images) | {deleted_images} |\n"
-            f"| {action} (tags) | {deleted_tags} |\n"
-            f"| Errors | {errors} |\n\n"
-            f"**Mode:** {mode} | "
-            f"**Retention:** Test={settings.TEST_RETENTION_DAYS}d, "
-            f"Others={settings.OTHERS_RETENTION_DAYS}d\n"
-        )
 
 
 def main() -> int:
@@ -56,26 +29,16 @@ def main() -> int:
     )
     logger.info(f"Found {len(images)} image(s)")
 
-    # Analyze images and create a deletion plan
     plan = create_deletion_plan(images, settings)
 
     logger.info(
-        f"Summary: {len(plan.images_to_delete)} images to delete entirely "
-        f"({plan.tags_in_deleted_images} tags), "
-        f"{len(plan.tags_to_delete)} individual tags to delete, "
-        f"{len(plan.tags_to_keep)} tags to keep"
+        f"Plan: {len(plan.images_to_delete)} to delete, "
+        f"{len(plan.images_to_keep)} to keep"
     )
 
-    # Execute deletions or print dry-run plan
-    if settings.DRY_RUN:
-        print_deletion_plan(plan, images)
-        deleted_images = len(plan.images_to_delete)
-        deleted_tags = len(plan.tags_to_delete)
-        errors = 0
-    else:
-        deleted_images, deleted_tags, errors = execute_deletion_plan(registry, plan)
+    errors = execute_plan(registry, plan, images, settings.DRY_RUN)
 
-    write_summary(plan, (deleted_images, deleted_tags, errors), settings)
+    write_summary(plan, errors, settings)
 
     return 0 if errors == 0 else 1
 
