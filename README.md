@@ -65,7 +65,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: developmentseed/container-registry-cleanup@v0.1.2 # x-release-please-version
+      - uses: developmentseed/container-registry-cleanup@v0.2.0 # x-release-please-version
         env:
           REGISTRY_TYPE: ghcr
           REPOSITORY_NAME: my-package-name
@@ -85,7 +85,7 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: developmentseed/container-registry-cleanup@v0.1.2 # x-release-please-version
+      - uses: developmentseed/container-registry-cleanup@v0.2.0 # x-release-please-version
         env:
           REGISTRY_TYPE: harbor
           REPOSITORY_NAME: data-pipeline

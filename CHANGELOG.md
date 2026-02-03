@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.2...v0.2.0) (2026-01-30)
+
+
+### Features
+
+* added debug mode. ([#16](https://github.com/developmentseed/container-registry-cleanup/issues/16)) ([e9b0ffd](https://github.com/developmentseed/container-registry-cleanup/commit/e9b0ffd37d4d1a3abfb3893737a1ce5c477a5274))
+
+
+### Bug Fixes
+
+* dry-run summary for harbor. ([#13](https://github.com/developmentseed/container-registry-cleanup/issues/13)) ([9f200ad](https://github.com/developmentseed/container-registry-cleanup/commit/9f200addd344877b12206d6d3b008642ad0aa3c1))
+
 ## [0.1.2](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.1...v0.1.2) (2026-01-29)
 
 
