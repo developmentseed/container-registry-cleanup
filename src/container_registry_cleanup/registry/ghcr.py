@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 
 import requests
+from loguru import logger
 from pydantic import BaseModel
 
 from container_registry_cleanup.base import ImageVersion, RegistryClient
@@ -54,7 +56,7 @@ class GHCRClient(RegistryClient):
         }
 
     def list_images(self) -> list[ImageVersion]:
-        all_images = []
+        all_images: list[ImageVersion] = []
         page = 1
 
         while True:
@@ -96,6 +98,7 @@ class GHCRClient(RegistryClient):
 
             page += 1
 
+        self._annotate_oci_references(all_images)
         return all_images
 
     def delete_image(self, image: ImageVersion) -> None:
@@ -114,3 +117,128 @@ class GHCRClient(RegistryClient):
                 f"image version, removing all tags ({tags_list})"
             )
         self.delete_image(image)
+
+    def _annotate_oci_references(self, images: list[ImageVersion]) -> None:
+        """Annotate image metadata with OCI reachability information.
+
+        For every currently tagged digest, recursively traverse registry references and
+        mark reachable digests as protected. This prevents deleting untagged manifests
+        that are still needed by a tagged OCI index/manifest tree.
+        """
+        protected_digests: set[str] = set()
+        visited: set[str] = set()
+
+        for image in images:
+            digest = self._extract_digest_from_version_metadata(image.metadata)
+            if digest:
+                image.metadata["ghcr_digest"] = digest
+            if image.tags and digest:
+                self._collect_protected_digests(digest, protected_digests, visited)
+
+        for image in images:
+            digest = cast(str | None, image.metadata.get("ghcr_digest"))
+            is_protected = bool(digest and digest in protected_digests)
+            image.metadata["protected_by_tag_or_index"] = is_protected
+            image.metadata["protected_reason"] = (
+                "reachable_from_tagged_manifest_or_index"
+                if is_protected
+                else "not_referenced_by_any_tagged_root"
+            )
+
+    def _collect_protected_digests(
+        self,
+        digest: str,
+        protected_digests: set[str],
+        visited: set[str],
+    ) -> None:
+        if digest in visited:
+            return
+
+        visited.add(digest)
+        protected_digests.add(digest)
+
+        manifest = self._get_manifest(digest)
+        if manifest is None:
+            return
+
+        media_type = str(manifest.get("mediaType", ""))
+
+        # OCI index / Docker manifest list: recurse into child manifests.
+        if self._is_index_media_type(media_type):
+            for child in manifest.get("manifests", []) or []:
+                child_digest = child.get("digest")
+                if isinstance(child_digest, str) and child_digest:
+                    self._collect_protected_digests(
+                        child_digest, protected_digests, visited
+                    )
+            return
+
+        # Single manifest: protect config + layers blobs.
+        config = manifest.get("config")
+        if isinstance(config, dict):
+            cfg_digest = config.get("digest")
+            if isinstance(cfg_digest, str) and cfg_digest:
+                protected_digests.add(cfg_digest)
+
+        for layer in manifest.get("layers", []) or []:
+            if isinstance(layer, dict):
+                layer_digest = layer.get("digest")
+                if isinstance(layer_digest, str) and layer_digest:
+                    protected_digests.add(layer_digest)
+
+    def _get_manifest(self, digest: str) -> dict[str, Any] | None:
+        """Fetch manifest/index JSON for a digest from GHCR v2 API."""
+        url = f"https://ghcr.io/v2/{self.org_name}/{self.repository_name}/manifests/{digest}"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": ",".join(
+                [
+                    "application/vnd.oci.image.index.v1+json",
+                    "application/vnd.oci.image.manifest.v1+json",
+                    "application/vnd.docker.distribution.manifest.list.v2+json",
+                    "application/vnd.docker.distribution.manifest.v2+json",
+                ]
+            ),
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+
+            if response.status_code == 404:
+                return None
+
+            response.raise_for_status()
+            body = response.json()
+            return body if isinstance(body, dict) else None
+        except requests.exceptions.RequestException:
+            logger.warning(
+                f"Failed to fetch manifest for {digest[:20]}; "
+                "treating as protected to avoid unsafe deletion"
+            )
+            return None
+
+    @staticmethod
+    def _extract_digest_from_version_metadata(metadata: dict[str, Any]) -> str | None:
+        """Extract canonical digest (`sha256:...`) from GHCR package version payload."""
+        version = metadata.get("version")
+        if not isinstance(version, dict):
+            return None
+
+        for key in ("name", "digest"):
+            value = version.get(key)
+            if isinstance(value, str) and value.startswith("sha256:"):
+                return value
+
+        container = version.get("metadata", {}).get("container", {})
+        if isinstance(container, dict):
+            digest_val = container.get("digest")
+            if isinstance(digest_val, str) and digest_val.startswith("sha256:"):
+                return digest_val
+
+        return None
+
+    @staticmethod
+    def _is_index_media_type(media_type: str) -> bool:
+        return media_type in {
+            "application/vnd.oci.image.index.v1+json",
+            "application/vnd.docker.distribution.manifest.list.v2+json",
+        }

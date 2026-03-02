@@ -3,6 +3,7 @@
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,3 +135,130 @@ class TestGHCRClient:
         with patch.object(client, "delete_image") as mock_delete:
             client.delete_tag(image, "tag1")
             mock_delete.assert_called_once_with(image)
+
+    def test_annotate_oci_references_tagged_index_protects_untagged_children(
+        self,
+    ) -> None:
+        """Tagged OCI index should protect referenced untagged child manifests."""
+        client = GHCRClient("token", "org", "pkg")
+        now = datetime.now(UTC)
+
+        tagged_index = ImageVersion(
+            "id-index",
+            ["titiler-openeo-v0.12.0"],
+            now,
+            metadata={"version": {"name": "sha256:index"}},
+        )
+        untagged_child_amd64 = ImageVersion(
+            "id-amd64",
+            [],
+            now,
+            metadata={"version": {"name": "sha256:amd64"}},
+        )
+        untagged_child_arm64 = ImageVersion(
+            "id-arm64",
+            [],
+            now,
+            metadata={"version": {"name": "sha256:arm64"}},
+        )
+
+        manifest_map: dict[str, dict[str, Any]] = {
+            "sha256:index": {
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {"digest": "sha256:amd64"},
+                    {"digest": "sha256:arm64"},
+                ],
+            },
+            "sha256:amd64": {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": {"digest": "sha256:cfg-amd64"},
+                "layers": [{"digest": "sha256:layer-amd64"}],
+            },
+            "sha256:arm64": {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": {"digest": "sha256:cfg-arm64"},
+                "layers": [{"digest": "sha256:layer-arm64"}],
+            },
+        }
+
+        with patch.object(
+            client, "_get_manifest", side_effect=lambda d: manifest_map.get(d)
+        ):
+            client._annotate_oci_references(
+                [tagged_index, untagged_child_amd64, untagged_child_arm64]
+            )
+
+        assert tagged_index.metadata["protected_by_tag_or_index"] is True
+        assert (
+            tagged_index.metadata["protected_reason"]
+            == "reachable_from_tagged_manifest_or_index"
+        )
+        assert untagged_child_amd64.metadata["protected_by_tag_or_index"] is True
+        assert untagged_child_arm64.metadata["protected_by_tag_or_index"] is True
+
+    def test_annotate_oci_references_multi_platform_and_orphan_digest(self) -> None:
+        """Multi-platform tagged index protects referenced manifests, not orphan digest."""
+        client = GHCRClient("token", "org", "pkg")
+        now = datetime.now(UTC)
+
+        tagged_multi = ImageVersion(
+            "id-multi",
+            ["v1.2.3"],
+            now,
+            metadata={"version": {"name": "sha256:multi-index"}},
+        )
+        amd64_manifest = ImageVersion(
+            "id-linux-amd64",
+            [],
+            now,
+            metadata={"version": {"name": "sha256:linux-amd64"}},
+        )
+        arm64_manifest = ImageVersion(
+            "id-linux-arm64",
+            [],
+            now,
+            metadata={"version": {"name": "sha256:linux-arm64"}},
+        )
+        orphan_digest = ImageVersion(
+            "id-orphan",
+            [],
+            now,
+            metadata={"version": {"name": "sha256:orphan"}},
+        )
+
+        manifest_map: dict[str, dict[str, Any]] = {
+            "sha256:multi-index": {
+                "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+                "manifests": [
+                    {"digest": "sha256:linux-amd64"},
+                    {"digest": "sha256:linux-arm64"},
+                ],
+            },
+            "sha256:linux-amd64": {
+                "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+                "config": {"digest": "sha256:cfg-linux-amd64"},
+                "layers": [{"digest": "sha256:layer-linux-amd64"}],
+            },
+            "sha256:linux-arm64": {
+                "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+                "config": {"digest": "sha256:cfg-linux-arm64"},
+                "layers": [{"digest": "sha256:layer-linux-arm64"}],
+            },
+        }
+
+        with patch.object(
+            client, "_get_manifest", side_effect=lambda d: manifest_map.get(d)
+        ):
+            client._annotate_oci_references(
+                [tagged_multi, amd64_manifest, arm64_manifest, orphan_digest]
+            )
+
+        assert tagged_multi.metadata["protected_by_tag_or_index"] is True
+        assert amd64_manifest.metadata["protected_by_tag_or_index"] is True
+        assert arm64_manifest.metadata["protected_by_tag_or_index"] is True
+        assert orphan_digest.metadata["protected_by_tag_or_index"] is False
+        assert (
+            orphan_digest.metadata["protected_reason"]
+            == "not_referenced_by_any_tagged_root"
+        )
