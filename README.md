@@ -39,6 +39,17 @@ The defaults can be changed with arguments.
 * `GITHUB_TOKEN`: GitHub token with `packages:write` permission (defaults to `github.token`)
 * `GITHUB_REPO_OWNER`: GitHub organization or user name (automatically set to `github.repository_owner` in GitHub Actions)
 
+#### OCI index-safe cleanup behavior
+
+For GHCR, cleanup is **index-safe**:
+
+* A protected digest set is built from all currently tagged artifacts.
+* If a tag points to a single manifest, that manifest digest and its referenced config/layers are protected.
+* If a tag points to an OCI index/manifest list, the index digest is protected, all child manifest digests are protected, and each child's referenced config/layers are protected.
+* Cleanup only deletes digests that are untagged, older than retention policy, and not reachable from any tagged manifest/index.
+
+This prevents leaving tags that resolve but fail to pull because referenced child manifests were removed.
+
 ### Harbor
 
 * `HARBOR_URL`: Harbor registry URL

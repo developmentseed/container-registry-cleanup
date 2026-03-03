@@ -20,6 +20,20 @@ from container_registry_cleanup.logic import (
 from container_registry_cleanup.settings import Settings
 
 
+def _image_with_protection(
+    identifier: str,
+    tags: list[str],
+    created_at: datetime,
+    *,
+    protected: bool,
+    protected_reason: str = "reachable_from_tagged_manifest_or_index",
+) -> ImageVersion:
+    img = ImageVersion(identifier, tags, created_at)
+    img.metadata["protected_by_tag_or_index"] = protected
+    img.metadata["protected_reason"] = protected_reason
+    return img
+
+
 class TestRetentionLogic:
     def setup_method(self) -> None:
         s = Settings()
@@ -159,7 +173,10 @@ class TestDeletionPlan:
         images = [ImageVersion("img1", [], now - timedelta(days=10))]
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 1
-        assert plan.images_to_delete[0][1] == "untagged"
+        assert (
+            plan.images_to_delete[0][1]
+            == "untagged >7d (10d old); not_protected_by_reference"
+        )
 
     def test_create_plan_untagged_new(self) -> None:
         """New untagged image should be kept."""
@@ -168,6 +185,104 @@ class TestDeletionPlan:
         plan = create_deletion_plan(images, self.settings)
         assert len(plan.images_to_delete) == 0
         assert len(plan.images_to_keep) == 1
+
+
+class TestGHCROCIIndexSafety:
+    def setup_method(self) -> None:
+        self.settings = Settings()
+        self.settings.OTHERS_RETENTION_DAYS = 7
+        self.settings.TEST_RETENTION_DAYS = 30
+
+    def test_tagged_oci_index_with_untagged_children_keeps_children(self) -> None:
+        """Untagged children referenced by a tagged index must be kept."""
+        now = datetime.now(UTC)
+
+        tagged_index = _image_with_protection(
+            "idx1",
+            ["v0.12.0"],
+            now - timedelta(days=200),
+            protected=True,
+        )
+        untagged_child_amd64 = _image_with_protection(
+            "child-amd64",
+            [],
+            now - timedelta(days=120),
+            protected=True,
+        )
+        untagged_child_arm64 = _image_with_protection(
+            "child-arm64",
+            [],
+            now - timedelta(days=120),
+            protected=True,
+        )
+
+        images = [tagged_index, untagged_child_amd64, untagged_child_arm64]
+        plan = create_deletion_plan(images, self.settings)
+
+        kept_ids = {img.identifier for img, _ in plan.images_to_keep}
+
+        assert {"idx1", "child-amd64", "child-arm64"} <= kept_ids
+        assert len(plan.images_to_delete) == 0
+
+    def test_untagged_leaf_manifest_not_referenced_can_delete(self) -> None:
+        """Old untagged leaf that is not referenced by any tagged root can be deleted."""
+        now = datetime.now(UTC)
+
+        orphan_leaf = _image_with_protection(
+            "orphan-leaf",
+            [],
+            now - timedelta(days=30),
+            protected=False,
+            protected_reason="not_referenced_by_any_tagged_root",
+        )
+
+        plan = create_deletion_plan([orphan_leaf], self.settings)
+
+        assert len(plan.images_to_delete) == 1
+        assert plan.images_to_delete[0][0].identifier == "orphan-leaf"
+
+    def test_multi_platform_index_scenario_keeps_all_referenced_platform_manifests(
+        self,
+    ) -> None:
+        """A multi-platform tagged index should keep referenced platform manifests."""
+        now = datetime.now(UTC)
+
+        tagged_multi_index = _image_with_protection(
+            "index-multi",
+            ["v1.2.3"],
+            now - timedelta(days=100),
+            protected=True,
+        )
+        amd64_manifest = _image_with_protection(
+            "linux-amd64",
+            [],
+            now - timedelta(days=95),
+            protected=True,
+        )
+        arm64_manifest = _image_with_protection(
+            "linux-arm64",
+            [],
+            now - timedelta(days=95),
+            protected=True,
+        )
+        old_orphan = _image_with_protection(
+            "old-orphan",
+            [],
+            now - timedelta(days=95),
+            protected=False,
+            protected_reason="not_referenced_by_any_tagged_root",
+        )
+
+        plan = create_deletion_plan(
+            [tagged_multi_index, amd64_manifest, arm64_manifest, old_orphan],
+            self.settings,
+        )
+
+        kept_ids = {img.identifier for img, _ in plan.images_to_keep}
+        deleted_ids = {img.identifier for img, _ in plan.images_to_delete}
+
+        assert {"index-multi", "linux-amd64", "linux-arm64"} <= kept_ids
+        assert "old-orphan" in deleted_ids
 
 
 class TestExecutePlan:
