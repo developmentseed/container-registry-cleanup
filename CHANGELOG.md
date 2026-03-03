@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.0...v0.2.1) (2026-03-03)
+
+
+### Bug Fixes
+
+* OCI index-safe GHCR cleanup to prevent deleting manifests still reachable from tagged indexes. ([#17](https://github.com/developmentseed/container-registry-cleanup/issues/17)) ([fe699a4](https://github.com/developmentseed/container-registry-cleanup/commit/fe699a4daf4de04bb614b167d9b7495bf87d8917))
+
 ## [0.2.0](https://github.com/developmentseed/container-registry-cleanup/compare/v0.1.2...v0.2.0) (2026-01-30)
 
 
