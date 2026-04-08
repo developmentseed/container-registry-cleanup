@@ -2,11 +2,17 @@ name: CI
 
 on:
   pull_request:
+    branches: ["**"]
+
+permissions: {}
 
 jobs:
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
     steps:

@@ -15,7 +15,7 @@ repos:
     rev: v1.23.1
     hooks:
       - id: zizmor
-        args: [--min-severity, medium]
+        args: [--persona=pedantic]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.42.0
