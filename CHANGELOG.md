@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.1...v0.2.2) (2026-04-09)
+
+
+### CI/CD
+
+* bump astral-sh/setup-uv from 7.6.0 to 8.0.0 ([#21](https://github.com/developmentseed/container-registry-cleanup/issues/21)) ([4290c90](https://github.com/developmentseed/container-registry-cleanup/commit/4290c90a87cbfc5429ec328bb20168e46f2b4ac1))
+* enable zizmor, ruff and fix gha issues ([#19](https://github.com/developmentseed/container-registry-cleanup/issues/19)) ([1e15cc6](https://github.com/developmentseed/container-registry-cleanup/commit/1e15cc68e207e2f25a626532e8f5f3dc22eb6008))
+
 ## [0.2.1](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.0...v0.2.1) (2026-03-03)
 
 
