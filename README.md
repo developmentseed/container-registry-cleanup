@@ -118,3 +118,21 @@ export OTHERS_RETENTION_DAYS=7
 
 python -m container_registry_cleanup
 ```
+
+## Development
+
+[uv](https://docs.astral.sh/uv/) is used to manage dependencies and the virtual environment.
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install the project and dev dependencies
+uv sync --group dev
+
+# Run tests
+uv run pytest
+
+# Run all pre-commit hooks (linting, formatting, type checking, tests)
+uv run pre-commit run --all-files
+```
