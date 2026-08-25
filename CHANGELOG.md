@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.2](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.1...v0.2.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* authenticate GHCR manifest fetches with an exchanged registry token ([#40](https://github.com/developmentseed/container-registry-cleanup/issues/40)) ([30d2004](https://github.com/developmentseed/container-registry-cleanup/commit/30d200439e3b47e8e79c7d7e68439e78369e4834))
+* claude-pr-review.yml formatting. ([#41](https://github.com/developmentseed/container-registry-cleanup/issues/41)) ([39428a8](https://github.com/developmentseed/container-registry-cleanup/commit/39428a874e67eae75c10dd69bf9921170f3d84fd))
+
+
+### CI/CD
+
+* bump actions/checkout from 6.0.2 to 7.0.0 ([#37](https://github.com/developmentseed/container-registry-cleanup/issues/37)) ([81c419f](https://github.com/developmentseed/container-registry-cleanup/commit/81c419f60b483ec4a5bd44b6bf773a24d57d84d7))
+* bump actions/setup-python from 6.2.0 to 6.3.0 ([#38](https://github.com/developmentseed/container-registry-cleanup/issues/38)) ([dddd915](https://github.com/developmentseed/container-registry-cleanup/commit/dddd915f8e4f680999f29b5edbc35f79744a42bf))
+* bump astral-sh/setup-uv from 7.6.0 to 8.0.0 ([#21](https://github.com/developmentseed/container-registry-cleanup/issues/21)) ([4290c90](https://github.com/developmentseed/container-registry-cleanup/commit/4290c90a87cbfc5429ec328bb20168e46f2b4ac1))
+* bump astral-sh/setup-uv from 8.0.0 to 8.2.0 ([#34](https://github.com/developmentseed/container-registry-cleanup/issues/34)) ([38dd4bc](https://github.com/developmentseed/container-registry-cleanup/commit/38dd4bc35e4fc71846a180071a01b6d3cfb448df))
+* bump googleapis/release-please-action from 4.4.0 to 5.0.0 ([#26](https://github.com/developmentseed/container-registry-cleanup/issues/26)) ([878c65b](https://github.com/developmentseed/container-registry-cleanup/commit/878c65ba01b64ecfb5a4f0f7adceb5cbaf650eaa))
+* bump zizmorcore/zizmor-action from 0.5.2 to 0.5.7 ([#39](https://github.com/developmentseed/container-registry-cleanup/issues/39)) ([09f6e07](https://github.com/developmentseed/container-registry-cleanup/commit/09f6e07f7f25eb8ceb2281d384918942e71f522b))
+* enable zizmor, ruff and fix gha issues ([#19](https://github.com/developmentseed/container-registry-cleanup/issues/19)) ([1e15cc6](https://github.com/developmentseed/container-registry-cleanup/commit/1e15cc68e207e2f25a626532e8f5f3dc22eb6008))
+
 ## [0.2.1](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.0...v0.2.1) (2026-03-03)
 
 
