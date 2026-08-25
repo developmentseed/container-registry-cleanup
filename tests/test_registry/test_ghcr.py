@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -135,6 +136,138 @@ class TestGHCRClient:
         with patch.object(client, "delete_image") as mock_delete:
             client.delete_tag(image, "tag1")
             mock_delete.assert_called_once_with(image)
+
+    def test_get_registry_token_exchanges_github_token(self) -> None:
+        """Registry token must be obtained via the ghcr.io/token basic-auth exchange.
+
+        A GITHUB_TOKEN is not a valid bearer token for the ghcr.io distribution API;
+        the client must first exchange it for a registry-scoped token at
+        https://ghcr.io/token using HTTP Basic auth.
+        """
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {"token": "registry-jwt"}
+
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            token = client._get_registry_token()
+
+        assert token == "registry-jwt"
+        mock_get.assert_called_once()
+        call_args, call_kwargs = mock_get.call_args
+        assert call_args[0] == "https://ghcr.io/token"
+        assert call_kwargs["params"] == {
+            "service": "ghcr.io",
+            "scope": "repository:myorg/mypackage:pull",
+        }
+        assert call_kwargs["auth"] == ("myorg", "gh-token")
+
+    def test_get_registry_token_cached_across_calls(self) -> None:
+        """The registry token is fetched once and cached, not re-fetched per manifest."""
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {"token": "registry-jwt"}
+
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            first = client._get_registry_token()
+            second = client._get_registry_token()
+
+        assert first == second == "registry-jwt"
+        mock_get.assert_called_once()
+
+    def test_get_registry_token_failure_returns_none(self) -> None:
+        """A failed token exchange must not raise; callers treat None as protected."""
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        with patch(
+            "requests.get",
+            side_effect=requests.exceptions.RequestException("boom"),
+        ):
+            token = client._get_registry_token()
+
+        assert token is None
+
+    def test_get_registry_token_failure_is_also_cached(self) -> None:
+        """A failed exchange must not be retried on every subsequent manifest fetch.
+
+        _collect_protected_digests can call _get_manifest (and therefore
+        _get_registry_token) once per digest walked, which can be hundreds for a
+        real registry. If ghcr.io/token is down or misconfigured, re-issuing that
+        request on every call would hammer the token endpoint for the rest of the
+        run instead of failing fast once.
+        """
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        with patch(
+            "requests.get",
+            side_effect=requests.exceptions.RequestException("boom"),
+        ) as mock_get:
+            first = client._get_registry_token()
+            second = client._get_registry_token()
+            third = client._get_manifest("sha256:whatever")
+
+        assert first is None
+        assert second is None
+        assert third is None
+        mock_get.assert_called_once()
+
+    def test_get_manifest_performs_two_step_token_exchange_then_fetches(self) -> None:
+        """_get_manifest must exchange for a registry token, then use it as Bearer auth.
+
+        This exercises the real HTTP auth path end-to-end (mocked at the requests
+        layer) rather than mocking _get_manifest directly, since that is what let
+        the original bug (reusing the GitHub API token against ghcr.io/v2/...) ship
+        silently: every prior test mocked _get_manifest itself.
+        """
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        token_response = MagicMock()
+        token_response.raise_for_status = MagicMock()
+        token_response.json.return_value = {"token": "registry-jwt"}
+
+        manifest_response = MagicMock()
+        manifest_response.status_code = 200
+        manifest_response.raise_for_status = MagicMock()
+        manifest_response.json.return_value = {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [{"digest": "sha256:child"}],
+        }
+
+        def fake_get(url: str, **kwargs: Any) -> MagicMock:
+            if url == "https://ghcr.io/token":
+                return token_response
+            return manifest_response
+
+        with patch("requests.get", side_effect=fake_get) as mock_get:
+            manifest = client._get_manifest("sha256:index")
+
+        assert manifest is not None
+        assert manifest["manifests"][0]["digest"] == "sha256:child"
+
+        # First call: token exchange. Second call: manifest fetch, authenticated
+        # with the exchanged registry token (not the raw GitHub token).
+        assert mock_get.call_count == 2
+        manifest_call_args, manifest_call_kwargs = mock_get.call_args_list[1]
+        assert manifest_call_args[0] == (
+            "https://ghcr.io/v2/myorg/mypackage/manifests/sha256:index"
+        )
+        assert manifest_call_kwargs["headers"]["Authorization"] == "Bearer registry-jwt"
+
+    def test_get_manifest_returns_none_when_token_exchange_fails(self) -> None:
+        """If the token exchange fails, treat the digest as protected without a 2nd call."""
+        client = GHCRClient("gh-token", "myorg", "mypackage")
+
+        with patch(
+            "requests.get",
+            side_effect=requests.exceptions.RequestException("boom"),
+        ) as mock_get:
+            manifest = client._get_manifest("sha256:index")
+
+        assert manifest is None
+        mock_get.assert_called_once()
 
     def test_annotate_oci_references_tagged_index_protects_untagged_children(
         self,
