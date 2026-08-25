@@ -9,9 +9,11 @@ on:
     paths-ignore:
       - '.github/workflows/**'
 
+permissions: {}
+
 jobs:
   review:
-    uses: developmentseed/.github/.github/workflows/claude-pr-review.yml@main
+    uses: developmentseed/.github/.github/workflows/claude-pr-review.yml@1f25a1bb00254fcaf42ae57ec1560d124279c19c # main
     # All inputs are optional:
     # with:
     #   ponytail: false            # drop the over-engineering pass
@@ -24,9 +26,9 @@ jobs:
     #   show_cost: false           # hide the cost footer on the comment
     #   model: claude-opus-4-8     # review model (default: Claude Code default)
     permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
+      contents: read # Checkout the repository to review.
+      pull-requests: write # Let the reviewer comment on the pull request.
+      id-token: write # Required by the reusable workflow to mint its OIDC token.
     # Picks up the org-level CLAUDE_CODE_OAUTH_TOKEN secret (create with
     # `claude setup-token`; see
     # https://github.com/developmentseed/.github#claude-pr-review).
