@@ -54,6 +54,8 @@ class GHCRClient(RegistryClient):
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+        self._registry_token: str | None = None
+        self._registry_token_fetched = False
 
     def list_images(self) -> list[ImageVersion]:
         all_images: list[ImageVersion] = []
@@ -186,11 +188,49 @@ class GHCRClient(RegistryClient):
                 if isinstance(layer_digest, str) and layer_digest:
                     protected_digests.add(layer_digest)
 
+    def _get_registry_token(self) -> str | None:
+        """Exchange the GitHub API token for a short-lived ghcr.io registry token.
+
+        The GHCR distribution API (ghcr.io/v2/...) uses standard OCI Distribution
+        token-auth, which is a different auth scheme than the GitHub REST API
+        (api.github.com). A GITHUB_TOKEN is not itself a valid bearer token for
+        ghcr.io/v2/... and must first be exchanged at ghcr.io/token. The exchanged
+        token is short-lived but valid for the whole cleanup run, so it is fetched
+        once lazily and cached on the instance.
+        """
+        if self._registry_token_fetched:
+            return self._registry_token
+        self._registry_token_fetched = True
+
+        scope = f"repository:{self.org_name}/{self.repository_name}:pull"
+        try:
+            response = requests.get(
+                "https://ghcr.io/token",
+                params={"service": "ghcr.io", "scope": scope},
+                auth=(self.org_name, self.token),
+                timeout=30,
+            )
+            response.raise_for_status()
+            token = response.json().get("token")
+            if isinstance(token, str) and token:
+                self._registry_token = token
+            return self._registry_token
+        except requests.exceptions.RequestException:
+            logger.warning(
+                "Failed to obtain ghcr.io registry token; "
+                "manifest fetches will treat digests as protected"
+            )
+            return None
+
     def _get_manifest(self, digest: str) -> dict[str, Any] | None:
         """Fetch manifest/index JSON for a digest from GHCR v2 API."""
+        registry_token = self._get_registry_token()
+        if registry_token is None:
+            return None
+
         url = f"https://ghcr.io/v2/{self.org_name}/{self.repository_name}/manifests/{digest}"
         headers = {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {registry_token}",
             "Accept": ",".join(
                 [
                     "application/vnd.oci.image.index.v1+json",
