@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.3](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.2...v0.2.3) (2026-08-27)
+
+
+### CI/CD
+
+* bump actions/checkout from 7.0.0 to 7.0.1 ([#42](https://github.com/developmentseed/container-registry-cleanup/issues/42)) ([811207d](https://github.com/developmentseed/container-registry-cleanup/commit/811207dd8b6e3d517c5ad89523a8deb2121dc91f))
+* bump actions/setup-python from 6.3.0 to 7.0.0 ([#43](https://github.com/developmentseed/container-registry-cleanup/issues/43)) ([096aed0](https://github.com/developmentseed/container-registry-cleanup/commit/096aed053d3e7766d1c5799e8d5ed87c584b20c1))
+* bump astral-sh/setup-uv from 8.2.0 to 10.0.1 ([#44](https://github.com/developmentseed/container-registry-cleanup/issues/44)) ([addb420](https://github.com/developmentseed/container-registry-cleanup/commit/addb420e6f6254bc1604529bf69dad828c2234fa))
+* bump zizmorcore/zizmor-action from 0.5.7 to 0.6.2 ([#45](https://github.com/developmentseed/container-registry-cleanup/issues/45)) ([463be19](https://github.com/developmentseed/container-registry-cleanup/commit/463be193c3c374b028346e246a864e2879faa9f5))
+
 ## [0.2.2](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.1...v0.2.2) (2026-08-25)
 
 
