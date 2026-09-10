@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.3...v0.2.4) (2026-09-10)
+
+
+### CI/CD
+
+* bump zizmorcore/zizmor-action from 0.6.2 to 0.6.3 ([#52](https://github.com/developmentseed/container-registry-cleanup/issues/52)) ([e940a8d](https://github.com/developmentseed/container-registry-cleanup/commit/e940a8d190220ac586e6cc35e3be90993f891ce8))
+
 ## [0.2.3](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.2...v0.2.3) (2026-08-27)
 
 
