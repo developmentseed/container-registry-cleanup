@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.4](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.3...v0.2.4) (2026-10-06)
+
+
+### CI/CD
+
+* audit the project's uv dependencies, not the action's own ([#60](https://github.com/developmentseed/container-registry-cleanup/issues/60)) ([46acada](https://github.com/developmentseed/container-registry-cleanup/commit/46acada07b0b8debb7c55ef3fe9313a8f6dac4c9))
+* bump astral-sh/setup-uv from 10.0.1 to 10.1.0 ([#56](https://github.com/developmentseed/container-registry-cleanup/issues/56)) ([319b0e2](https://github.com/developmentseed/container-registry-cleanup/commit/319b0e2ee3b8deb7670527c12f40cc81ea78897f))
+* bump astral-sh/setup-uv from 10.1.0 to 10.2.0 ([#57](https://github.com/developmentseed/container-registry-cleanup/issues/57)) ([1ddade5](https://github.com/developmentseed/container-registry-cleanup/commit/1ddade5bdf719299d29664a0b3c8b02b69fe1511))
+* bump zizmorcore/zizmor-action from 0.6.2 to 0.6.3 ([#52](https://github.com/developmentseed/container-registry-cleanup/issues/52)) ([e940a8d](https://github.com/developmentseed/container-registry-cleanup/commit/e940a8d190220ac586e6cc35e3be90993f891ce8))
+* bump zizmorcore/zizmor-action from 0.6.3 to 0.6.4 ([#54](https://github.com/developmentseed/container-registry-cleanup/issues/54)) ([a0d6d72](https://github.com/developmentseed/container-registry-cleanup/commit/a0d6d72ab3fd4f8b1c4e62eca57a437c072fd621))
+
 ## [0.2.3](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.2...v0.2.3) (2026-08-27)
 
 
