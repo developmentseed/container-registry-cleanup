@@ -24,5 +24,5 @@ jobs:
           persist-credentials: false
       - uses: developmentseed/action-python-security-auditing@8ebea22ea75dfba2244ed9883c2aa6cb4df8d9a9 # v0.6.0
         with:
-          package_manager: pip
+          package_manager: uv
           bandit_scan_dirs: src/
