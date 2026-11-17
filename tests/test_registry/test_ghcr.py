@@ -1,6 +1,8 @@
 """Tests for GHCR client."""
 
+import json
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -8,12 +10,81 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from container_registry_cleanup.__main__ import main
 from container_registry_cleanup.base import ImageVersion
 from container_registry_cleanup.registry import GHCRClient
 from container_registry_cleanup.settings import Settings
+
+INDEX = "application/vnd.oci.image.index.v1+json"
+LEAF = "application/vnd.oci.image.manifest.v1+json"
+
+
+def _version(version_id: int, digest: str, tags: list[str]) -> dict[str, Any]:
+    return {
+        "id": version_id,
+        "name": digest,
+        "created_at": "2024-01-01T00:00:00Z",
+        "metadata": {"container": {"tags": tags}},
+    }
+
+
+# A tagged index with two untagged children, plus an untagged orphan; all are old.
+VERSIONS = [
+    _version(1, "sha256:index", ["v1.0.0"]),
+    _version(2, "sha256:amd64", []),
+    _version(3, "sha256:arm64", []),
+    _version(4, "sha256:orphan", []),
+]
+HEALTHY: dict[str, Any] = {
+    "sha256:index": {
+        "mediaType": INDEX,
+        "manifests": [{"digest": "sha256:amd64"}, {"digest": "sha256:arm64"}],
+    },
+    "sha256:amd64": {"mediaType": LEAF, "layers": []},
+    "sha256:arm64": {"mediaType": LEAF, "layers": []},
+}
+# HEALTHY, but the index also references a digest the registry no longer has.
+GONE_CHILD: dict[str, Any] = {
+    **HEALTHY,
+    "sha256:index": {
+        "mediaType": INDEX,
+        "manifests": [*HEALTHY["sha256:index"]["manifests"], {"digest": "sha256:gone"}],
+    },
+}
+
+
+def _fake_get(
+    manifests: dict[str, Any],
+    token: Any = None,
+    versions: list[dict[str, Any]] = VERSIONS,
+) -> Callable[..., requests.Response]:
+    """Fake requests.get for the versions API, the token exchange and manifests.
+
+    A token or manifest value that is an exception is raised, an int is the HTTP
+    status of an empty response, anything else is a 200 JSON body. Digests missing
+    from `manifests` are 404s.
+    """
+
+    def reply(value: Any) -> requests.Response:
+        if isinstance(value, Exception):
+            raise value
+        response = requests.Response()
+        response.status_code = value if isinstance(value, int) else 200
+        response._content = json.dumps(value).encode()
+        return response
+
+    def fake_get(url: str, **kwargs: Any) -> requests.Response:
+        if url == "https://ghcr.io/token":
+            return reply({"token": "registry-jwt"} if token is None else token)
+        if url.startswith("https://ghcr.io/v2/org/pkg/manifests/"):
+            return reply(manifests.get(url.rsplit("/", 1)[1], 404))
+        return reply(versions if kwargs["params"]["page"] == 1 else [])
+
+    return fake_get
 
 
 class TestGHCRClient:
@@ -178,42 +249,6 @@ class TestGHCRClient:
         assert first == second == "registry-jwt"
         mock_get.assert_called_once()
 
-    def test_get_registry_token_failure_returns_none(self) -> None:
-        """A failed token exchange must not raise; callers treat None as protected."""
-        client = GHCRClient("gh-token", "myorg", "mypackage")
-
-        with patch(
-            "requests.get",
-            side_effect=requests.exceptions.RequestException("boom"),
-        ):
-            token = client._get_registry_token()
-
-        assert token is None
-
-    def test_get_registry_token_failure_is_also_cached(self) -> None:
-        """A failed exchange must not be retried on every subsequent manifest fetch.
-
-        _collect_protected_digests can call _get_manifest (and therefore
-        _get_registry_token) once per digest walked, which can be hundreds for a
-        real registry. If ghcr.io/token is down or misconfigured, re-issuing that
-        request on every call would hammer the token endpoint for the rest of the
-        run instead of failing fast once.
-        """
-        client = GHCRClient("gh-token", "myorg", "mypackage")
-
-        with patch(
-            "requests.get",
-            side_effect=requests.exceptions.RequestException("boom"),
-        ) as mock_get:
-            first = client._get_registry_token()
-            second = client._get_registry_token()
-            third = client._get_manifest("sha256:whatever")
-
-        assert first is None
-        assert second is None
-        assert third is None
-        mock_get.assert_called_once()
-
     def test_get_manifest_performs_two_step_token_exchange_then_fetches(self) -> None:
         """_get_manifest must exchange for a registry token, then use it as Bearer auth.
 
@@ -255,19 +290,6 @@ class TestGHCRClient:
             "https://ghcr.io/v2/myorg/mypackage/manifests/sha256:index"
         )
         assert manifest_call_kwargs["headers"]["Authorization"] == "Bearer registry-jwt"
-
-    def test_get_manifest_returns_none_when_token_exchange_fails(self) -> None:
-        """If the token exchange fails, treat the digest as protected without a 2nd call."""
-        client = GHCRClient("gh-token", "myorg", "mypackage")
-
-        with patch(
-            "requests.get",
-            side_effect=requests.exceptions.RequestException("boom"),
-        ) as mock_get:
-            manifest = client._get_manifest("sha256:index")
-
-        assert manifest is None
-        mock_get.assert_called_once()
 
     def test_annotate_oci_references_tagged_index_protects_untagged_children(
         self,
@@ -395,3 +417,122 @@ class TestGHCRClient:
             orphan_digest.metadata["protected_reason"]
             == "not_referenced_by_any_tagged_root"
         )
+
+
+class TestFailClosed:
+    """If any part of a tagged tree cannot be read, the run must delete nothing."""
+
+    @staticmethod
+    def _list(fake_get: Callable[..., requests.Response]) -> list[ImageVersion]:
+        with patch("requests.get", side_effect=fake_get):
+            return GHCRClient("token", "org", "pkg").list_images()
+
+    @pytest.mark.parametrize(
+        "token",
+        [requests.ConnectionError("down"), 401, {}],
+        ids=["network-error", "http-401", "no-token-in-body"],
+    )
+    def test_token_failure_raises(self, token: Any) -> None:
+        with pytest.raises((requests.RequestException, ValueError)):
+            self._list(_fake_get(HEALTHY, token=token))
+
+    @pytest.mark.parametrize(
+        "index",
+        [requests.ConnectionError("down"), 500, 404, ["not", "an", "object"]],
+        ids=["network-error", "http-500", "http-404", "not-an-object"],
+    )
+    def test_unreadable_tagged_index_raises(self, index: Any) -> None:
+        with pytest.raises((requests.RequestException, ValueError)):
+            self._list(_fake_get({**HEALTHY, "sha256:index": index}))
+
+    @pytest.mark.parametrize(
+        "nested",
+        [503, 401, 429, requests.Timeout("slow"), ["not", "an", "object"]],
+        ids=["http-503", "http-401", "http-429", "timeout", "not-an-object"],
+    )
+    def test_unreadable_nested_index_raises(self, nested: Any) -> None:
+        """A child index that can't be read hides its own children."""
+        manifests = {
+            **HEALTHY,
+            "sha256:index": {"mediaType": INDEX, "manifests": [{"digest": "sha256:n"}]},
+            "sha256:n": nested,
+        }
+        with pytest.raises((requests.RequestException, ValueError)):
+            self._list(_fake_get(manifests))
+
+    def test_listed_child_404_raises(self) -> None:
+        """The packages API lists it, so a 404 is not 'gone': its children are unknown."""
+        versions = [*VERSIONS, _version(5, "sha256:gone", [])]
+        with pytest.raises(ValueError, match="sha256:gone"):
+            self._list(_fake_get(GONE_CHILD, versions=versions))
+
+    def test_index_without_media_type_protects_children(self) -> None:
+        index = {k: v for k, v in HEALTHY["sha256:index"].items() if k != "mediaType"}
+        images = self._list(_fake_get({**HEALTHY, "sha256:index": index}))
+        protected = {
+            i.identifier: i.metadata["protected_by_tag_or_index"] for i in images
+        }
+        assert protected == {"1": True, "2": True, "3": True, "4": False}
+
+    def test_missing_child_is_skipped_with_warning(self) -> None:
+        """A child that 404s is already gone: warn, keep protecting the rest."""
+        warnings: list[str] = []
+        sink = logger.add(warnings.append, level="WARNING")
+        try:
+            images = self._list(_fake_get(GONE_CHILD))
+        finally:
+            logger.remove(sink)
+
+        protected = {
+            i.identifier: i.metadata["protected_by_tag_or_index"] for i in images
+        }
+        assert protected == {"1": True, "2": True, "3": True, "4": False}
+        assert any("sha256:gone" in w for w in warnings)
+
+    def test_tagged_root_404_fails_even_when_first_seen_as_child(self) -> None:
+        versions = [*VERSIONS, _version(5, "sha256:gone", ["main"])]
+        with pytest.raises(ValueError, match="sha256:gone"):
+            self._list(_fake_get(GONE_CHILD, versions=versions))
+
+    @staticmethod
+    def _env(monkeypatch: pytest.MonkeyPatch, dry_run: str) -> None:
+        for key, value in {
+            "REGISTRY_TYPE": "ghcr",
+            "GITHUB_TOKEN": "token",
+            "GITHUB_REPO_OWNER": "org",
+            "REPOSITORY_NAME": "pkg",
+            "DRY_RUN": dry_run,
+        }.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    @pytest.mark.parametrize("dry_run", ["false", "true"])
+    def test_main_deletes_nothing_and_fails(
+        self,
+        dry_run: str,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        self._env(monkeypatch, dry_run)
+        broken = _fake_get({**HEALTHY, "sha256:index": 500})
+        with (
+            patch("requests.get", side_effect=broken),
+            patch("requests.delete") as delete,
+        ):
+            assert main() == 1
+        delete.assert_not_called()
+        err = capsys.readouterr().err
+        assert "nothing will be deleted" in err
+        assert "Would delete" not in err
+
+    def test_main_still_deletes_unreferenced_untagged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._env(monkeypatch, "false")
+        with (
+            patch("requests.get", side_effect=_fake_get(HEALTHY)),
+            patch("requests.delete") as delete,
+        ):
+            assert main() == 0
+        delete.assert_called_once()
+        assert delete.call_args[0][0].endswith("/versions/4")
