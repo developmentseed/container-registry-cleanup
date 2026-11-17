@@ -4,7 +4,12 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      # Majors included, so each month's Actions updates arrive as one PR.
+      all:
+        patterns:
+          - "*"
     commit-message:
       prefix: "ci"
     cooldown:
@@ -13,7 +18,21 @@ updates:
   - package-ecosystem: uv
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    allow:
+      # Include transitive packages (certifi, filelock, virtualenv): the security audit blocks on any fixable CVE in uv.lock.
+      - dependency-type: all
+    groups:
+      all:
+        patterns:
+          - "*"
+      # Without this, each vulnerable package gets its own security PR, and none passes the audit while another is still vulnerable.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    # action.yml pip-installs the package, so uv.lock never reaches users.
+    # `deps` is not in release-please's changelog-sections, so these bumps don't cut a release.
     commit-message:
       prefix: "deps"
     cooldown:
