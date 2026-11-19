@@ -47,6 +47,7 @@ For GHCR, cleanup is **index-safe**:
 * If a tag points to a single manifest, that manifest digest and its referenced config/layers are protected.
 * If a tag points to an OCI index/manifest list, the index digest is protected, all child manifest digests are protected, and each child's referenced config/layers are protected.
 * Cleanup only deletes digests that are untagged, older than retention policy, and not reachable from any tagged manifest/index.
+* Protection fails closed: if the registry token or any manifest reachable from a tag cannot be read, the run deletes nothing and exits with an error (dry runs too). The one exception is a child manifest that returns 404 and is no longer listed: it is already gone, so the run logs a warning and continues.
 
 This prevents leaving tags that resolve but fail to pull because referenced child manifests were removed.
 

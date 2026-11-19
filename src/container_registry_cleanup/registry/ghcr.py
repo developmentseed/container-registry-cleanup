@@ -55,7 +55,6 @@ class GHCRClient(RegistryClient):
             "X-GitHub-Api-Version": "2022-11-28",
         }
         self._registry_token: str | None = None
-        self._registry_token_fetched = False
 
     def list_images(self) -> list[ImageVersion]:
         all_images: list[ImageVersion] = []
@@ -126,6 +125,9 @@ class GHCRClient(RegistryClient):
         For every currently tagged digest, recursively traverse registry references and
         mark reachable digests as protected. This prevents deleting untagged manifests
         that are still needed by a tagged OCI index/manifest tree.
+
+        Fails closed: if any part of a tagged tree cannot be read, this raises, so the
+        run aborts before planning and nothing is deleted.
         """
         protected_digests: set[str] = set()
         visited: set[str] = set()
@@ -134,8 +136,23 @@ class GHCRClient(RegistryClient):
             digest = self._extract_digest_from_version_metadata(image.metadata)
             if digest:
                 image.metadata["ghcr_digest"] = digest
+        listed = {d for i in images if (d := i.metadata.get("ghcr_digest"))}
+
+        for image in images:
+            digest = image.metadata.get("ghcr_digest")
             if image.tags and digest:
-                self._collect_protected_digests(digest, protected_digests, visited)
+                try:
+                    self._collect_protected_digests(
+                        digest, protected_digests, visited, listed
+                    )
+                except (requests.exceptions.RequestException, ValueError) as e:
+                    logger.error(
+                        f"Cannot read the manifest tree of tagged version "
+                        f"{image.identifier} ({', '.join(image.tags)}): {e}. "
+                        "Untagged versions it references cannot be identified, "
+                        "so nothing will be deleted."
+                    )
+                    raise
 
         for image in images:
             digest = cast(str | None, image.metadata.get("ghcr_digest"))
@@ -152,6 +169,7 @@ class GHCRClient(RegistryClient):
         digest: str,
         protected_digests: set[str],
         visited: set[str],
+        listed: set[str],
     ) -> None:
         if digest in visited:
             return
@@ -161,17 +179,20 @@ class GHCRClient(RegistryClient):
 
         manifest = self._get_manifest(digest)
         if manifest is None:
+            if digest in listed:
+                raise ValueError(f"listed manifest {digest} not found (404)")
+            logger.warning(f"Child manifest {digest} not found (404); already gone")
             return
 
         media_type = str(manifest.get("mediaType", ""))
 
         # OCI index / Docker manifest list: recurse into child manifests.
-        if self._is_index_media_type(media_type):
+        if self._is_index_media_type(media_type) or "manifests" in manifest:
             for child in manifest.get("manifests", []) or []:
                 child_digest = child.get("digest")
                 if isinstance(child_digest, str) and child_digest:
                     self._collect_protected_digests(
-                        child_digest, protected_digests, visited
+                        child_digest, protected_digests, visited, listed
                     )
             return
 
@@ -188,7 +209,7 @@ class GHCRClient(RegistryClient):
                 if isinstance(layer_digest, str) and layer_digest:
                     protected_digests.add(layer_digest)
 
-    def _get_registry_token(self) -> str | None:
+    def _get_registry_token(self) -> str:
         """Exchange the GitHub API token for a short-lived ghcr.io registry token.
 
         The GHCR distribution API (ghcr.io/v2/...) uses standard OCI Distribution
@@ -196,41 +217,33 @@ class GHCRClient(RegistryClient):
         (api.github.com). A GITHUB_TOKEN is not itself a valid bearer token for
         ghcr.io/v2/... and must first be exchanged at ghcr.io/token. The exchanged
         token is short-lived but valid for the whole cleanup run, so it is fetched
-        once lazily and cached on the instance.
+        once lazily and cached on the instance. Any failure raises.
         """
-        if self._registry_token_fetched:
+        if self._registry_token:
             return self._registry_token
-        self._registry_token_fetched = True
 
         scope = f"repository:{self.org_name}/{self.repository_name}:pull"
-        try:
-            response = requests.get(
-                "https://ghcr.io/token",
-                params={"service": "ghcr.io", "scope": scope},
-                auth=(self.org_name, self.token),
-                timeout=30,
-            )
-            response.raise_for_status()
-            token = response.json().get("token")
-            if isinstance(token, str) and token:
-                self._registry_token = token
-            return self._registry_token
-        except requests.exceptions.RequestException:
-            logger.warning(
-                "Failed to obtain ghcr.io registry token; "
-                "manifest fetches will treat digests as protected"
-            )
-            return None
+        response = requests.get(
+            "https://ghcr.io/token",
+            params={"service": "ghcr.io", "scope": scope},
+            auth=(self.org_name, self.token),
+            timeout=30,
+        )
+        response.raise_for_status()
+        token = response.json().get("token")
+        if not isinstance(token, str) or not token:
+            raise ValueError("ghcr.io/token response has no token")
+        self._registry_token = token
+        return token
 
     def _get_manifest(self, digest: str) -> dict[str, Any] | None:
-        """Fetch manifest/index JSON for a digest from GHCR v2 API."""
-        registry_token = self._get_registry_token()
-        if registry_token is None:
-            return None
+        """Fetch manifest/index JSON for a digest from GHCR v2 API.
 
+        Returns None only on a 404; any other failure raises.
+        """
         url = f"https://ghcr.io/v2/{self.org_name}/{self.repository_name}/manifests/{digest}"
         headers = {
-            "Authorization": f"Bearer {registry_token}",
+            "Authorization": f"Bearer {self._get_registry_token()}",
             "Accept": ",".join(
                 [
                     "application/vnd.oci.image.index.v1+json",
@@ -240,21 +253,14 @@ class GHCRClient(RegistryClient):
                 ]
             ),
         }
-        try:
-            response = requests.get(url, headers=headers, timeout=30)
-
-            if response.status_code == 404:
-                return None
-
-            response.raise_for_status()
-            body = response.json()
-            return body if isinstance(body, dict) else None
-        except requests.exceptions.RequestException:
-            logger.warning(
-                f"Failed to fetch manifest for {digest[:20]}; "
-                "treating as protected to avoid unsafe deletion"
-            )
+        response = requests.get(url, headers=headers, timeout=30)
+        if response.status_code == 404:
             return None
+        response.raise_for_status()
+        body = response.json()
+        if not isinstance(body, dict):
+            raise ValueError(f"manifest {digest} is not a JSON object")
+        return body
 
     @staticmethod
     def _extract_digest_from_version_metadata(metadata: dict[str, Any]) -> str | None:
