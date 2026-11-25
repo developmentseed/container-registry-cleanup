@@ -26,11 +26,7 @@ updates:
       all:
         patterns:
           - "*"
-      # Without this, each vulnerable package gets its own security PR, and none passes the audit while another is still vulnerable.
-      security:
-        applies-to: security-updates
-        patterns:
-          - "*"
+      # No security-updates group: while a grouped security PR is open, Dependabot defers fixes for packages not already in it.
     # action.yml pip-installs the package, so uv.lock never reaches users.
     # `deps` is not in release-please's changelog-sections, so these bumps don't cut a release.
     commit-message:
