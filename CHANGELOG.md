@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.5](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.4...v0.2.5) (2026-11-25)
+
+
+### CI/CD
+
+* bump astral-sh/setup-uv from 10.3.3 to 10.4.0 in the all group ([#85](https://github.com/developmentseed/container-registry-cleanup/issues/85)) ([fc4c941](https://github.com/developmentseed/container-registry-cleanup/commit/fc4c94110c08b284aced7656f13696b2b43b4794))
+* stop grouping Dependabot security updates ([#83](https://github.com/developmentseed/container-registry-cleanup/issues/83)) ([ff0b768](https://github.com/developmentseed/container-registry-cleanup/commit/ff0b76853f931549ff3d6d962c805986be042238))
+
 ## [0.2.4](https://github.com/developmentseed/container-registry-cleanup/compare/v0.2.3...v0.2.4) (2026-11-19)
 
 
